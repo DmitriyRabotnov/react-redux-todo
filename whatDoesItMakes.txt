@@ -1,50 +1,85 @@
-To add React Router to the project, I'm running npm install --save react-router. I'm going to import the Router component from it, as well as the Route configuration component. Now I can replace my app with the Router, and it's important that it's inside Provider so that any components rendered by the Router still have access to the store.
+The links that control the visibilityFilter do not currently behave like real links. I'd like to change it so that the background works and the current URL updates when I click on these links and change the current visibilityFilter.
 
-Root.js
+[output](../images/javascript-redux-navigating-with-react-router-link-output.png)
 
-import { Router, Route } from 'react-router';
-import App from './App';
+I will add a parameter to my Route called filter, and I need to wrap it in parenthesis to tell react-router that it's optional, because if it's not specified, I want to show all todos.
 
-const Root = ({ store }) => (
-  <Provider store={store}>
-    <Router>
-
-    </Router>
-  </Provider>
-);
-Inside, I put a single Route element that tells React Router that I want to render my App component at the root path. If I run the app, I can see that the Router matched the path correctly and rendered the App component.
-
-[output](../images/javascript-redux-adding-react-router-to-the-project-output.png)
-
-If you see weird symbols after a hash sign in the address bar, it means that you're using the version of React Router that doesn't yet default to the browserHistory, and defaults to hash history instead.
-
-To fix it, you can import browserHistory from React Router and pass it as a history prop to Router. Unless you target very old browsers like IE9, you can always use browserHistory and have a clean URL in the address bar.
-
-Root.js
-
-import { Router, Route browserHistory} from 'react-router';
-import App from './App';
+index.js
 
 const Root = ({ store }) => (
   <Provider store={store}>
     <Router history={browserHistory}>
-      <Route path='/' component={App} />
+      <Route path='/(:filter)' component={App} />
     </Router>
   </Provider>
 );
-Let's recap the changes we made to add React Router to the application. I ran npm install --save react-router, and I imported the Router component and the Route configuration component from React Router.
+Now I'm opening the Footer component that displays the links. Right now, I'm using the custom convention for the filter prop, but I'm going to change this to align more closely with the paths I want to be displayed, so I'm using active and completed for the active and completed paths, and to avoid passing an empty string, I'll just use a null string to signify the default path.
 
-Root.js
+Footer.js
 
-import { Router, Route browserHistory} from 'react-router';
-Instead of rendering the app directly, I replaced it with a Router component that has a single route at the root path that renders the App component. In order to avoid hash sign and weird symbols after it, I imported browserHistory, and I passed it as the history prop to the Router component.
-
-Root.js
-
-const Root = ({ store }) => (
-  <Provider store={store}>
-    <Router history={browserHistory}>
-      <Route path='/' component={App} />
-    </Router>
-  </Provider>
+const Footer = () => (
+  <p>
+    Show:
+    {" "}
+    <FilterLink filter="SHOW_ALL">
+      All
+    </FilterLink>
+    {", "}
+    <FilterLink filter="SHOW_ACTIVE">
+      Active
+    </FilterLink>
+    {", "}
+    <FilterLink filter="SHOW_COMPLETED">
+      Completed
+    </FilterLink>
+  </p>
 );
+My current implementation of the filterLink component dispatches an action every time it's clicked, and reads its active state from the store, comparing its filter prop to the visibilityFilter in the store.
+
+However, I'm not going to need this implementation anymore because I want the Router to be in control of any state that is in the URL. This is why I import link from react-router, and my new implementation of the FilterLink component is going to use it.
+
+FilterLink.js
+
+import React from 'react';
+import { Link } from 'react-router';
+
+const FilterLink = ()
+It accepts filter as a prop, and it renders through the link provided by react-router. Its true prop corresponds to the path that we want the link to point to, so if the filter is all we're going to use the root path. Otherwise, we'll just use the filter itself as the path.
+
+FilterLink.js
+
+import React from 'react';
+import { Link } from 'react-router';
+
+const FilterLink = ({ filter }) => (
+  <Link
+    to={filter === 'all' ? '' : filter}
+
+);
+I am also specifying the active style prop so that the link is styled differently when its true prop matches the current path. Finally, I'm passing children to the link itself, and I'm adding children as a prop to FilterLink so that the parent component can specify the children.
+
+FilterLink.js
+
+import React from 'react';
+import { Link } from 'react-router';
+
+const FilterLink = ({ filter }) => (
+  <Link
+    to={filter === 'all' ? '' : filter}
+    activeStyle={{
+      textDecoration: 'none',
+      color: 'black',
+    }}
+  >
+    {children}
+  </Link>
+);
+
+export default FilterLink;
+Now I'm exporting filter link, and I have some cleanup to do. I can remove the setVisibilityFilter action-creator, as I don't use it anymore. I can also remove my custom link component, because now I'm using the link from react-router instead of it.
+
+If I run the app now, clicking on the link will update the URL bar. It also works in the other direction. Clicking on the back or forward buttons gets the corresponding link active.
+
+[output](../images/javascript-redux-navigating-with-react-router-link-output2.png)
+
+In the next lesson, we will teach our component to read the current filter from the URL instead of Redux store.
