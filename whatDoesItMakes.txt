@@ -1,69 +1,130 @@
-The links that control the visibilityFilter do not currently behave like real links. I'd like to change it so that the background works and the current URL updates when I click on these links and change the current visibilityFilter.
+I'm using the links provided by React Router now, so when I click on a link, the URL gets updated. However, the content does not get updated because the VisibleTodoList component in its mapStateToProps function still depends on the visibilityFilter in the Redux store instead of reading it from the URL.
 
-[output](../images/javascript-redux-navigating-with-react-router-link-output.png)
+VisibleTodoList.js
 
-I will add a parameter to my Route called filter, and I need to wrap it in parenthesis to tell react-router that it's optional, because if it's not specified, I want to show all todos.
+const mapStateToProps = (state) => ({
+  todos: getVisibleTodos(
+    state.todos,
+    state.visibilityFilter
+  ),
+});
+I am adding an argument called ownProps to the mapStateToProps function, and I'm going to read the current visibilityFilter from ownProps. I will also change the getVisibleTodos function to use the current convention we use for the filter prop that is all completed or active.
 
-index.js
+VisibleTodoList.js
+
+const getVisibleTodos = (todos, filter) => {
+  switch (filter) {
+    case 'all':
+      return todos;
+    case 'completed':
+      reutrn todos.filter(t => t.completed);
+    case 'active':
+      return todos.filter(t => !t.completed);
+    default: 
+      throw new Error('Unknown filter: ${filter}')
+  } 
+}
+The VisibleTodoList component gets rendered from the app, so this is where we need to add the filter prop to make it available in the mapStateToProps function of the VisibleTodoList.
+
+App.js
+
+const App = () => (
+  <div>
+    <AddTodo />
+    <VisibleTodoList
+      filter={filter}
+    />
+    <Footer />
+  </div>
+);
+We want the filter prop to correspond to the current filter parameter in our route configuration. React Router makes such parameters available to the route handler components in a special prop called params, so I'm adding a params prop to the app, and now I can read the filter from params.filter.
+
+App.js
+
+const App = ({ params }) => (
+  <div>
+    <AddTodo />
+    <VisibleTodoList
+      filter={params.filter}
+    />
+    <Footer />
+  </div>
+);
+Since its empty on the root path, I'm passing all as a fallback to the VisibleTodoList. Now I'll refresh the app, and as I press the visibilityFilter links, not only does the URL update, but also the console updates, even if I use back and forward buttons in the browser.
+
+[output](../images/javascript-redux-filtering-redux-state-with-react-router-params-output.png)
+
+App.js
+
+const App = ({ params }) => (
+  <div>
+    <AddTodo />
+    <VisibleTodoList
+      filter={params.filter || 'all'}
+    />
+    <Footer />
+  </div>
+);
+One common problem after enabling routing is, if we go to another path and press refresh, your dev server may not be configured correctly to serve anything but the root path.
+
+[invalid](../images/javascript-redux-filtering-redux-state-with-react-router-params-invalid.png)
+
+I'm using Express "See Getting Started with Express.js for more information regarding Express" with webpackDevMiddleware in my development, so I just need to tell Express to serve index HTML no matter what the path is. This way, the dev server always serves the same HTML file, and React Router matches the route on the client.
+
+devServer.js
+
+app.get('/*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
+Now that the visibilityFilter is managed by React Router, I no longer need the visibilityFilter reducer. I'm just going to delete it and also remove it from the combined reducers declaration in reducers/index.js.
+
+reducers/index.js
+
+import { combineReducers } from 'redux';
+import todos from './todos';
+
+const todoApp = combineReducers({
+  todos,
+});
+
+export default todoApp;
+Let's recap how React Router became the source of truth for the visibilityFilter. In the root component, I render the Router, and I only have a single route with an optional :filter parameter. The :filter parameter gets passed into the {App} component by React Router. React Router will make it available inside a special { params } prop.
+
+Root.js
 
 const Root = ({ store }) => (
   <Provider store={store}>
-    <Router history={browserHistory}>
-      <Route path='/(:filter)' component={App} />
+    <Router history={broswerHistory}>
+      <Route path="/(:filter)" component={App} />
     </Router>
   </Provider>
 );
-Now I'm opening the Footer component that displays the links. Right now, I'm using the custom convention for the filter prop, but I'm going to change this to align more closely with the paths I want to be displayed, so I'm using active and completed for the active and completed paths, and to avoid passing an empty string, I'll just use a null string to signify the default path.
+App.js
 
-Footer.js
-
-const Footer = () => (
-  <p>
-    Show:
-    {" "}
-    <FilterLink filter="SHOW_ALL">
-      All
-    </FilterLink>
-    {", "}
-    <FilterLink filter="SHOW_ACTIVE">
-      Active
-    </FilterLink>
-    {", "}
-    <FilterLink filter="SHOW_COMPLETED">
-      Completed
-    </FilterLink>
-  </p>
+const App = ({ params }) => (
+  <div>
+    <AddTodo />
+    <VisibleTodoList
+      filter={parms.filter || 'all'}
+    />
+    <Footer />
+  </div>
 );
-My current implementation of the filterLink component dispatches an action every time it's clicked, and reads its active state from the store, comparing its filter prop to the visibilityFilter in the store.
+I am passing the filter param from the URL, or 'all' if we are on the root path, to the VisibleTodoList component as a filter prop. The VisibleTodoList component now reads the filter from its props and not from the state, so it uses the filter specified by the app
 
-However, I'm not going to need this implementation anymore because I want the Router to be in control of any state that is in the URL. This is why I import link from react-router, and my new implementation of the FilterLink component is going to use it.
+VisibleTodoList.js
 
-FilterLink.js
-
-import React from 'react';
-import { Link } from 'react-router';
-
-const FilterLink = ()
-It accepts filter as a prop, and it renders through the link provided by react-router. Its true prop corresponds to the path that we want the link to point to, so if the filter is all we're going to use the root path. Otherwise, we'll just use the filter itself as the path.
-
-FilterLink.js
-
-import React from 'react';
-import { Link } from 'react-router';
-
-const FilterLink = ({ filter }) => (
-  <Link
-    to={filter === 'all' ? '' : filter}
-
-);
-I am also specifying the active style prop so that the link is styled differently when its true prop matches the current path. Finally, I'm passing children to the link itself, and I'm adding children as a prop to FilterLink so that the parent component can specify the children.
+const mapStateToProps = (state, ownProps) => ({
+  todos: getVisibleTodos(
+    state.todos, 
+    ownProps.filter
+  ),
+});
+I change the getVisibleTodos function to use the current filter names, all, completed, and active. For consistency, the footer component now also uses these names as the value of the filter prop for the FilterLink, and I re-implemented the FilterLink to use the Link provided by React Router instead of our own implementation.
 
 FilterLink.js
 
-import React from 'react';
-import { Link } from 'react-router';
-
-const FilterLink = ({ filter }) => (
+const FilterLink = ({ filter, children }) => {
   <Link
     to={filter === 'all' ? '' : filter}
     activeStyle={{
@@ -71,15 +132,16 @@ const FilterLink = ({ filter }) => (
       color: 'black',
     }}
   >
-    {children}
+   {children}
   </Link>
-);
+};
+Finally, I fix the dev server to correctly return index HTML no matter which path is requested, so that React Router can pick it up on the client.
 
-export default FilterLink;
-Now I'm exporting filter link, and I have some cleanup to do. I can remove the setVisibilityFilter action-creator, as I don't use it anymore. I can also remove my custom link component, because now I'm using the link from react-router instead of it.
+devServer.js
 
-If I run the app now, clicking on the link will update the URL bar. It also works in the other direction. Clicking on the back or forward buttons gets the corresponding link active.
+app.get('/*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
+You might think that making the router in control of the visibilityFilter contradicts the idea of a single-state tree. However, in practice, what matters is that there's just one single source of truth for any independent piece of data.
 
-[output](../images/javascript-redux-navigating-with-react-router-link-output2.png)
-
-In the next lesson, we will teach our component to read the current filter from the URL instead of Redux store.
+We're using Redux as the source of truth for the todos, and we're using React Router as the source of truth for anything that can be computed from the URL. In our case, this is the current visibilityFilter.
