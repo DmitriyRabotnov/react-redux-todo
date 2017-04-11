@@ -1,186 +1,166 @@
-We currently represent the todos in the state tree as an array of todo objects. However, in the real app, we probably have more than a single array and then todos with the same IDs in different arrays might get out of sync.
+Now that my state shape is more complex, I want to override the store.dispatch function to add some console logs there so that I can see how the state is affected by the actions.
 
-This is why I wanted to treat my state as a database, and I'm going to keep my todos in an object indexed by the IDs of the todos. I've renamed the reducer to byId and rather than add a new item at the end or map over every item, now it's going to change the value in the lookup table.
+configureStore
 
-Both TOGGLE_TODO and ADD_TODO object is now going to be the same. I want to return a new lookup table where the value unto the ID in the action is going to be the result of calling the reducer on the previous value under reducer ID and the action.
+const configureStore = () => {
+  const persistedState = loadState();
+  const store = createStore(todoApp, persistedState);
 
-todos.js
+  store.dispatch = addLoggingToDispatch(store);
 
-const byId = (state = {}, action) => {
-  switch (action.type) {
-    case 'ADD_TODO':
-    case 'TOGGLE_TODO':
-      return {
-        ...state,
-        [action.id]: todo(state[action.id], action),
-    };
-    default:
-      return state;
-  }
-};
-This is to reduce a composition but with an object instead of an array. I'm also using the object spread operator here. It is not a part of ES6 so you need to enable transform-object-rest-spread in babel reducer file, and you need to install the babel-plugin-transform-object-rest-spread for this to work.
+  store.subscribe(throttle(() => { ... }
+I'm creating the new function called addLoggingToDispatch, that accepts store as an argument. It's going to wrap the dispatch provided by Redux, so it reads the raw dispatch from store.dispatch.
 
-.babelrc
+configureStore
 
-{
-  "presets": ["es2015", "react"],
-  "plugins": ["transform-object-rest-operator"]
+const addLoggingToDispatch = (store) => {
+  const rawDispatch = store.dispatch;
+
 }
-Anytime the byId reducer receives an action, it's going to return the copy of its mapping between the IDs and the actual todos with updated todo for the current action. I will let another reducer that keeps track of all the added IDs.
+It will return another function with the same signature as dispatch, which is a single action argument. Some browsers like Chrome support using console group API to group several log statements under a single title, and I'm passing the action.type in order to group several logs under the action.type.
 
-We keep the todos themselves in the byId map now, so the state of this reducer is an array of IDs rather than array of todos. I switch on the action type and the only action I care about is ADD_TODO because if a new todo is added, I want to return a new array of IDs with that ID as the last item.
+configureStore
 
-todos.js
-
-const allIds = (state = [], action) => {
-  switch (action.type) {
-    case 'ADD_TODO':
-      return [...state, action.id];
-  }
+const addLoggingToDispatch = (store) => {
+  const rawDispatch = store.dispatch;
+  return (action) => {
+    console.group(action.type);
+    console.groupEnd(action.type);
+  };
 };
-For any other actions, I just need to return the current state, that is, the current array of IDs. Finally, I still need to export the single reducer from the todos file, so I'm going to use combinedReducers again to combine the byId and the allIds reducers.
+I will log the previous state before dispatching the action by calling store.getState(). Next, I will log the action itself so that I can see which action causes the change.
 
-todos.js
+configureStore
 
-const allIds = (state = [], action) => {
-  switch (action.type) {
-    case 'ADD_TODO':
-      return [...state, action.id];
-    default: 
-      return state;
-  }
+const addLoggingToDispatch = (store) => {
+  const rawDispatch = store.dispatch;
+  return (action) => {
+    console.group(action.type);
+    console.log('prev state', store.getState());
+    console.log('action', action); 
+    console.groupEnd(action.type);
+  };
 };
+To preserve the contract of the dispatch function exactly, I am declaring the returnValue, and I'm calling the rawDispatch() function with the action. Now the calling code will not be able to distinguish between my function and the function provided by Redux, except that I also log some information.
 
-const todos = combineReducers({
-  byId,
-  allIds,
-});
-You can use combinedReducers as many times as you like. You don't have to only use it on the top-level reducer. In fact, it's very common that as your app grows, you'll use combine reducers in several places.
+configureStore.js
 
-todos.js
-
-import { combineReducers } from 'redux';
-Now that we have changed the state shape in reducers, we also need to update the selectors that rely on it. The state object then getVisibleTodos is now going to contain byId and allIds fields, because it corresponds to the C of the combined reducer.
-
-Since I don't have the array of todos anymore, I will write the selector that is going to calculate it for me. I won't export it because I only plan to use it in the current file and it takes the current state and returns all the todos by mapping AllIDs to the state ByID lookup table.
-
-todos.js
-
-const getAllTodos = (state) => 
-  state.allIds.map(id => state.byId[id]);
-I will use this name selector inside my getVisibleTodos selector to obtain an array of todos that I can filter. allTodos is an array of todos just like the components I expect so I can return it from the selector and not worry about change in my component code.
-
-todos.js
-
-export const getVisibleTodos = (state, filter) => {
-  const allTodos = getAllTodos(state);
-  switch (filter) {
-    case 'all':
-      return allTodos;
-    case 'completed':
-      return allTodos.filter(t => t.completed);
-    case 'active':
-      return allTodos.filter(t => !t.completed);
-    default:
-      throw new Error(`Unknown filter: ${filter}.`);
-  }
+const addLoggingToDispatch = (store) => {
+  const rawDispatch = store.dispatch;
+  return (action) => {
+    console.group(action.type);
+    console.log('prev state', store.getState());
+    console.log('action', action); 
+    const returnValue = rawDispatch(action);
+    console.groupEnd(action.type);
+    return returnValue;
+  };
 };
-My todos file has grown quite a bit so it's a good time to extract the todo reducer that manages just a single todo into a separate file of its own. I created a file called todo in the same folder and I will paste my implementation right there so that I can import it from the todos file.
+I want to log the next state as well, because after the dispatch is called, the state is guaranteed to be updated, so I can use store.getState() in order to receive the next state after the dispatch.
 
-todos.js
+configureStore
 
-import todo from './todo';
-Let's recap how we change those state structures to be normalized and more like a database. I just extracted the todo reducer into a separate file but it hasn't changed in the state.
-
-/reducers/todo.js
-
-const todo = (state, action) => {
-  switch (action.type) {
-    case 'ADD_TODO':
-      return {
-        id: action.id,
-        text: action.text,
-        completed: false,
-      };
-    case 'TOGGLE_TODO':
-      if (state.id !== action.id) {
-        return state;
-      }
-      return {
-        ...state,
-        completed: !state.completed,
-      };
-    default:
-      return state;
+const addLoggingToDispatch = (store) => {
+  const rawDispatch = store.dispatch;
+  return (action) => {
+    ...
+    const returnValue = rawDispatch(action);
+    console.log('next state', store.getState());
+    ... 
   }
+}
+Some browsers, such as Google Chrome, also offer an API to style console logs, and I'm going to add some colors to my logs. I'm painting the previous state gray. The action is blue, and the next state is green.
+
+configureStore.js
+
+const addLoggingToDispatch = (store) => {
+  const rawDispatch = store.dispatch;
+  return (action) => {
+    console.group(action.type);
+    console.log('%c prev state', 'color: gray', store.getState());
+    console.log('%c action', 'color: blue', action); 
+    const returnValue = rawDispatch(action);
+    console.log('%c next state', 'color: green', store.getState());
+    console.groupEnd(action.type);
+    return returnValue;
+  };
 };
+A few final touches. Since the console group API is not available in all browsers, if it's not supported, I'll just return the raw dispatch as is.
 
-export default todo;
-It's still a reducer that handles updates to a single todo item. I'm using this reducer inside the new reducer I wrote today, which is called byId and its state shape is an object. It reads the ID of the todo to update from the action and it calls the todo reducer with the previous state of this ID and the action.
+configureStore.js
 
-todos.js
-
-const byId = (state = {}, action) => {
-  switch (action.type) {
-    case 'ADD_TODO':
-    case 'TOGGLE_TODO':
-      return {
-        ...state,
-        [action.id]: todo(state[action.id], action),
-    };
-    default:
-      return state;
+const addLoggingToDispatch = (store) => {
+  const rawDispatch = store.dispatch;
+  if (!console.group) {
+    return rawDispatch;
   }
-};
-For the ADD_TODO action, the corresponding todo will not exist in the lookup table yet. We're calling the todo reducer with undefined as the first argument. The todo reducer would then return a new todo object when handling ADD_TODO so this object will get assigned under the action.id key inside the next version of the lookup table.
 
-Notice how we're mixing the objects spread operator with the computed property syntax, which lets us specify a value at a dynamic key inside action.id. Also, remember that the objects spread operator is experimental and you need a special babel plugin to enable it.
+  return (action) => {...}
+Finally, it's not a good idea to log everything in production, so I'll add a gate saying that if (process.env.NODE_ENV ...) is not production, then I'm going to run this code. Otherwise, I'm just going to leave the store as is.
 
-I also wrote a second reducer called addIds that manages just the array of IDs of the todos. Every time a todo is added, it returns a new array with this ID of the new todo at the very end.
+configureStore.js
 
-todos.js
+const configureStore = () => {
+  const persistedState = loadState();
+  const store = createStore(todoApp, persistedState);
 
-const allIds = (state = [], action) => {
-  switch (action.type) {
-    case 'ADD_TODO':
-      return [...state, action.id];
-    default: 
-      return state;
+  if (process.env.NODE_ENV !== 'production') {
+    store.dispatch = addLoggingToDispatch(store);
   }
-};
-It uses the array-spread operator, which is part of ES6, to produce a new array with the allIds followed by the new ID. The two reducers now handle the same action. This is fine and very common in the Redux apps.
 
-I'm combining the two reducers I wrote into a single reducer by calling combineReducers provided by Redux. You may use combineReducers at multiple levels in your reducer hierarchy.
+  store.subscribe(throttle(() => {...}
+Let's have a look at how our app runs with the wrapped dispatch function. Now, every time I dispatch an action such as ADD_TODO, I can see it in the log. In the previous state, I can see that there are no IDs, and the byId look-up table is empty.
 
-todos.js
+[console output](../images/javascript-redux-wrapping-dispatch-to-log-actions-output-1.png)
 
-const todos = combineReducers({
-  byId,
-  allIds,
-});
+Then I see the action with the type ADD_TODO, and the ID and text of the todo. Finally, in the state after dispatching the action, I can see both the ID in all IDs and the corresponding todo in the byId mapping.
 
-Since the state shape changed, I needed to update the selectors that depend on it. I wrote the private selector called `getAllTodos` that just assembles all the todos objects from the state by mapping the IDs to the lookup table.
+[console output](../images/javascript-redux-wrapping-dispatch-to-log-actions-output-2.png)
 
-**todos.js**
+The only way to change the Redux store state is by dispatching an action, and now we log every action along with the state before and after it, so it's really easy to find, if there is a mistake in the state, which action caused it.
 
-```javascript
-const getAllTodos = (state) => 
-  state.allIds.map(id => state.byId[id]);
-For every ID, we get the todo from state.byId. I'm returning the array of todos with exactly the same shape as the state inside getVisibleTodos used to be before this change.
+Let's recap how this works. I added a new function that takes the store, grabs dispatch from it, and if your browser doesn't support the console group API, it'll just return the original dispatch function.
 
-todos.js
+configureStore.js
 
-export const getVisibleTodos = (state, filter) => {
-  const allTodos = getAllTodos(state);
-  switch (filter) {
-    case 'all':
-      return allTodos;
-    case 'completed':
-      return allTodos.filter(t => t.completed);
-    case 'active':
-      return allTodos.filter(t => !t.completed);
-    default:
-      throw new Error(`Unknown filter: ${filter}.`);
+const addLoggingToDispatch = (store) => {
+  const rawDispatch = store.dispatch;
+  if (!console.group) {
+    return rawDispatch;
   }
+
+  return (action) => {...}
+Otherwise, I will return a new function that looks like dispatch. It accepts the action argument, and it even calls the original dispatch function inside. However, it also places a few logs into a group with the action type.
+
+configureStore.js
+
+const addLoggingToDispatch = (store) => {
+  const rawDispatch = store.dispatch;
+  return (action) => {
+    console.group(action.type);
+    console.log('%c prev state', 'color: gray', store.getState());
+    console.log('%c action', 'color: blue', action); 
+    const returnValue = rawDispatch(action);
+    console.log('%c next state', 'color: green', store.getState());
+    console.groupEnd(action.type);
+    return returnValue;
+  };
 };
-I can get allTodos and now I can use allTodos for filtering and I can return it to the new ID that doesn't need to be changed, because all the state shape knowledge is encapsulated in the selector.
+I log the previous state by calling store get state before dispatching. I also log the action that caused the change, and finally, because I know that the store dispatch function is synchronous, I can call store.getState() again right after it to log the next state of the store.
+
+Finally, to keep complete compatibility with the underlying dispatch function, I return whatever it returned. Usually, this is the action object.
+
+My function returns a wrapped dispatch function, so I will use it to return value to override the store.dispatch method. I don't want to run this code in production, so wrap it in an environment check.
+
+configureStore.js
+
+const configureStore = () => {
+  const persistedState = loadState();
+  const store = createStore(todoApp, persistedState);
+
+  if (process.env.NODE_ENV !== 'production') {
+    store.dispatch = addLoggingToDispatch(store);
+  }
+
+  store.subscribe(throttle(() => {...}
+This check by itself is not enough, and it will only work correctly if in the production build you use Define plugin for Webpack or transform for Browserify.
