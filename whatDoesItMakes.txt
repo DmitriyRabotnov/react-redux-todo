@@ -1,196 +1,70 @@
-I want to persist the state of the application in the localStorage using browser localStorage API. I'm going to write a function called loadState and a new model that I'm going to call localStorage as that is going to use the localStorage browser API.
+I'm extracting the logic necessary to create the store, and to subscribe to it to persist the state into a separate file.
 
-The loadState function is going to look into localStorage by key, retrieve a string, and try to parse it as JSON. It's important that we wrap this code into try/catch because calls to your localStorage.getItem can fail if the user privacy mode does not allow the use of localStorage.
+I'm calling this file configureStore, and so I'm creating a function called configureStore that is going to contain this logic so that the app doesn't have to know exactly how the store is created and if we have any subscribe handlers on it. It can just use the return store in the index.js file.
 
-localStorage.js
+configureStore.js
 
-export const loadState = () => {
-  try {
-    const serializedState = localStorage.getItem('state');
+const configureStore = () => {
+  const persistedState = loadState();
+  const store = createStore(
+    todoApp,
+    persistedState
+  );
 
-  }
+  store.subscribe(throttle() => {
+    saveState({
+      todos: store.getState().todos,
+    });
+  }, 1000))
+
+  return store;
 };
-If the serializedState is null it means that the SKI does exist so I'll return undefined to let the reducers initialize the state instead. However if the serializedState string exists I'm going to use JSON.parse in order to turn it into the state object. Finally in case of any errors I'm going to play it safe and return undefined to let reducers initialize the application.
-
-localStorage.js
-
-export const loadState = () => {
-  try {
-    const serializedState = localStorage.getItem('state');
-    if (serializedState === null) {
-      return undefined;
-    }
-    return JSON.parse(serializedState);
-  } catch (err) {
-    return undefined;
-  }
-};
-Now that I have wrote the function to load the state, I might as well write a function that saves the state to localStorage. It's going to accept the state as an argument, and it's going to do the exact opposite thing.
-
-localStorage.js
-
-export const saveState = (state) => {};
-First it serializes it to string by using JSON.stringify. This will only work if the state is serializable, but this is the general recommendation in Redux. Your state should be serializable. Now that both JSON.stringify and localStorage.setItem can fail so it's important that we catch any errors to prevent the app from crashing.
-
-localStorage.js
-
-export const saveState = (state) => {
-  try {
-    const serializedState = JSON.stringify(state);
-    localStorage.setItem('state', serializedState);
-  } catch (err) {
-    // Ignore write errors.
-  }
-};
-I'm just going to ignore them, but I might as well log them somewhere. Now I am also importing the saveState function I just wrote in the index.js. I need to save the state any time the store state changes, so I'm using the store.subscribe method to add a listener that will be invoked on any state change, and I'm passing the current state of the store to my saveState function.
+It is useful to export configureStore rather than store itself, so that if you later write some tests, you can easily create as many store instances as you want. Now I can import configureStore from my application's entry point, and I can use it right away without having to specify the reducer or the subscribers, because configureStore takes care of that.
 
 index.js
 
-store.subscribe(() => {
-  saveState(store.getState());
-});
-Let's see if it worked. I'm adding a few todos. I'm toggling one of the todos, and then I'm refreshing. The state of the app is preserved across reloads, and in fact the visibilityFilter is also preserved, which is probably not what we want, because usually we want to persist just the data and not the UI state.
+import configure from './configureStore';
 
-[output](../images/javascript-redux-refactoring-the-entry-point-output.png)
+const store = configureStore();
+I also want to extract the root rendered element into a separate component that I'm going to call Root. It's going to accept the store as a prop, and it's going to be defined in a separate file in the components folder.
 
-To fix this rather than pass the whole state object I'll just pass an object with the todos field from the state object. This way if I start with a clean localStorage and I add a couple of todos, and then I toggle one of them and change the visibilityFilter, after refresh the todos are still there, but the visibilityFilter gets reset to all.
-
-[output](../images/javascript-redux-refactoring-the-entry-point-output2.png)
-
-index.js
-
-store.subscribe(() => {
-  saveState({
-    todos: store.getState().todos
-  });
-});
-When the store is created the todos are preserved from the persisted state, but the visibilityFilter is initialized by the reducer. However, the current code has a bug. If I add a new todo to the existing todos it's not going to appear, and React is going to log a warning saying that I encountered two children with the same key, zero.
-
-[error message](../images/javascript-redux-refactoring-the-entry-point-error.png)
-
-What this means is that in the TodoList component when we render the todos, we use the todo.id as a key. The todo.id is assigned in the addTodo action creator, and it uses a local variable called nextTodoId as a counter.
-
-TodoList.js
-
-const TodoList = ({ todos, onTodoClick }) => (
-  <ul>
-    {todos.map(todo =>
-      <Todo
-        key={todo.id}
-        {...todo}
-        onClick={() => onTodoClick(todo.id)}
-      />
-    )}
-  </ul>
+render(
+  <Root store={store} />
+  document.getElementById('root')
 );
-It's supposed to be unique. However if the application runs the second time the nextTodoId is going to be initialized to zero again so the new todo which is added also has an ID of zero just like the very first todo.
+I'm creating a new file called Root. It needs to import React to use the JSX syntax, and I define a stateless functional component that just takes the store as a prop and returns an app inside a React Redux Provider.
 
-actions/index.js
+Root.js
 
-export const addTodo = (text) => ({
-  type: 'ADD_TODO', 
-  id: (nextTodoID++).toString(),
-  text,
-});
-To avoid problems like this I'm going to install an npm module called node-uuid. It is a very tiny module, and it exports a couple of functions. The function we're going to use is called v4, which is just a name of the standard.
+import React from 'react';
 
-[console output](../images/javascript-redux-refactoring-the-entry-point-console.png)
-
-It generates a unique string ID every time, and we're going to use this ID instead of a counter. I'm replacing the counter declaration with an import of v4 from the node-uuid, and I'm calling v4 to generate a unique ID in my action creator.
-
-actions/index.js
-
-import { v4 } from 'node-uuid';
-
-export const addTodo = (text) => ({
-  type: 'ADD_TODO',
-  id: v4(),
-  text,
-});
-Now let's run the app again with a clean localStorage. I'm adding a couple new todos, I'm toggling them, and these arrive refreshed in the app. I can change the visibilityFilter, but it doesn't get persisted, because we only want to persist the data.
-
-Finally I'm adding a new todo, and it gets added successfully. It also gets persisted so I can refresh, do something with it, refresh, and it's there again in the correct state.
-
-[todos](../images/javascript-redux-refactoring-the-entry-point-output3.png)
-
-There is just one more thing left to do. We're currently call saveState inside the subscribe listener so it is called every time the storage state changes. However we would like to avoid calling it too often because it uses the expensive stringify operation.
-
-localStorage.js
-
-export const saveState = (state) => {
-  try {
-    const serializedState = JSON.stringify(state);
-    localStorage.setItem('state', serializedState);
-  } catch (err) {
-    // Ignore write errors.
-  }
-};
-To solve this I'm going to use a library called lodash which includes a handy utility called throttle. Wrapping my call back in a throttle call insures that the inner function that I pass is not going to be called more often than the number of milliseconds I specify.
-
-index.js
-
-store.subscribe(throttle(() => {
-  saveState({
-    todos: store.getState().todos
-  });
-}, 1000));
-Now even if this store gets abated really fast we have a guarantee that we only write to the localStorage at most once a second. Now I'm adding the import for throttle from lodash and know that I imported directly from a file called throttle so that we don't end up with a whole lodash in our bundle just because of a single function.
-
-index.js
-
-import throttle from 'lodash/throttle';
-Let's recap how we added the localStorage persistence to the todos app. First we created the new module with loadState and saveState functions. loadState looks into the localStorage, and if there is a serialized string of our state it tries to parse it as JSON.
-
-localStorage.js
-
-export const loadState = () => {
-  try {
-    const serializedState = localStorage.getItem('state');
-    if (serializedState === null) {
-      return undefined;
-    }
-    return JSON.parse(serializedState);
-  } catch (err) {
-    return undefined;
-  }
-};
-If something goes wrong we return it undefined so that the app doesn't crash. We use the return value of loadState as the second argument to createStore so that it overrides the initial state specified by the reducers.
-
-index.js
-
-const store = createStore(
-  todoApp,
-  persistedState
+const Root = ({ store }) => (
+  <Provider store={store}>
+    <App />
+  </Provider>
 );
-We want to be notified of the changes to the store state so we subscribe to it. We wrap our subscriber in throttle function from lodash in order to insure that it doesn't get called more often than once a second.
+I need to import Provider from React Redux, and also import the App component they use, which is in the same folder. I can export the Root component, and I can go back to my entry point, remove the outdated imports I no longer use, and instead import the Root component from the components folder.
 
 index.js
 
-store.subscribe(throttle(() => {
-  saveState({
-    todos: store.getState().todos
-  });
-}, 1000));
-We only want to keep the todos and not the visibilityFilter, so we explicitly parse an object that contains just the todos from the current state. Inside saveState we're going to serialize the current state to string with JSON.stringify and try to setItem, but if something fails, we're just going to ignore this error so that the app doesn't crash.
+import Root from './components/Root'
+Let's recap our refactoring. I moved all the code that is necessary for creating the  store into a separate module. This module exports a function called configureStore. It takes care of creating the store with the right reducer and the right initial state, and setting up any kinds of subscriptions, so that it returns a store that is ready for consumption by my application.
 
-localStorage.js
+configureStore.js
 
-export const saveState = (state) => {
-  try {
-    const serializedState = JSON.stringify(state);
-    localStorage.setItem('state', serializedState);
-  } catch (err) {
-    // Ignore write errors.
-  }
+const configureStore = () => {
+  const persistedState = loadState();
+  const store = createStore(
+    todoApp,
+    persistedState
+  );
+
+  store.subscribe(throttle() => {
+    saveState({
+      todos: store.getState().todos,
+    });
+  }, 1000))
+
+  return store;
 };
-Finally we change the ID generation for todos from a simple in memory counter to a function from node.uuid that generates a unique ID string every time.
-
-actions/index.js
-
-import { v4 } from 'node-uuid';
-
-export const addTodo = (text) => ({
-  type: 'ADD_TODO',
-  id: v4(),
-  text,
-});
+I also moved the Root component into a separate file. Currently, it is very simple. It just wraps the app into React Redux Provider. In the future, we can add something like a router here.
