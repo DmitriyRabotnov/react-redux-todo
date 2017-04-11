@@ -1,70 +1,50 @@
-I'm extracting the logic necessary to create the store, and to subscribe to it to persist the state into a separate file.
-
-I'm calling this file configureStore, and so I'm creating a function called configureStore that is going to contain this logic so that the app doesn't have to know exactly how the store is created and if we have any subscribe handlers on it. It can just use the return store in the index.js file.
-
-configureStore.js
-
-const configureStore = () => {
-  const persistedState = loadState();
-  const store = createStore(
-    todoApp,
-    persistedState
-  );
-
-  store.subscribe(throttle() => {
-    saveState({
-      todos: store.getState().todos,
-    });
-  }, 1000))
-
-  return store;
-};
-It is useful to export configureStore rather than store itself, so that if you later write some tests, you can easily create as many store instances as you want. Now I can import configureStore from my application's entry point, and I can use it right away without having to specify the reducer or the subscribers, because configureStore takes care of that.
-
-index.js
-
-import configure from './configureStore';
-
-const store = configureStore();
-I also want to extract the root rendered element into a separate component that I'm going to call Root. It's going to accept the store as a prop, and it's going to be defined in a separate file in the components folder.
-
-render(
-  <Root store={store} />
-  document.getElementById('root')
-);
-I'm creating a new file called Root. It needs to import React to use the JSX syntax, and I define a stateless functional component that just takes the store as a prop and returns an app inside a React Redux Provider.
+To add React Router to the project, I'm running npm install --save react-router. I'm going to import the Router component from it, as well as the Route configuration component. Now I can replace my app with the Router, and it's important that it's inside Provider so that any components rendered by the Router still have access to the store.
 
 Root.js
 
-import React from 'react';
+import { Router, Route } from 'react-router';
+import App from './App';
 
 const Root = ({ store }) => (
   <Provider store={store}>
-    <App />
+    <Router>
+
+    </Router>
   </Provider>
 );
-I need to import Provider from React Redux, and also import the App component they use, which is in the same folder. I can export the Root component, and I can go back to my entry point, remove the outdated imports I no longer use, and instead import the Root component from the components folder.
+Inside, I put a single Route element that tells React Router that I want to render my App component at the root path. If I run the app, I can see that the Router matched the path correctly and rendered the App component.
 
-index.js
+[output](../images/javascript-redux-adding-react-router-to-the-project-output.png)
 
-import Root from './components/Root'
-Let's recap our refactoring. I moved all the code that is necessary for creating the  store into a separate module. This module exports a function called configureStore. It takes care of creating the store with the right reducer and the right initial state, and setting up any kinds of subscriptions, so that it returns a store that is ready for consumption by my application.
+If you see weird symbols after a hash sign in the address bar, it means that you're using the version of React Router that doesn't yet default to the browserHistory, and defaults to hash history instead.
 
-configureStore.js
+To fix it, you can import browserHistory from React Router and pass it as a history prop to Router. Unless you target very old browsers like IE9, you can always use browserHistory and have a clean URL in the address bar.
 
-const configureStore = () => {
-  const persistedState = loadState();
-  const store = createStore(
-    todoApp,
-    persistedState
-  );
+Root.js
 
-  store.subscribe(throttle() => {
-    saveState({
-      todos: store.getState().todos,
-    });
-  }, 1000))
+import { Router, Route browserHistory} from 'react-router';
+import App from './App';
 
-  return store;
-};
-I also moved the Root component into a separate file. Currently, it is very simple. It just wraps the app into React Redux Provider. In the future, we can add something like a router here.
+const Root = ({ store }) => (
+  <Provider store={store}>
+    <Router history={browserHistory}>
+      <Route path='/' component={App} />
+    </Router>
+  </Provider>
+);
+Let's recap the changes we made to add React Router to the application. I ran npm install --save react-router, and I imported the Router component and the Route configuration component from React Router.
+
+Root.js
+
+import { Router, Route browserHistory} from 'react-router';
+Instead of rendering the app directly, I replaced it with a Router component that has a single route at the root path that renders the App component. In order to avoid hash sign and weird symbols after it, I imported browserHistory, and I passed it as the history prop to the Router component.
+
+Root.js
+
+const Root = ({ store }) => (
+  <Provider store={store}>
+    <Router history={browserHistory}>
+      <Route path='/' component={App} />
+    </Router>
+  </Provider>
+);
