@@ -13,6 +13,7 @@ visibilityFilter.js
 const visibilityFilter = (state = 'SHOW_ALL' action)
 The initial state of the combinedReducer is going to be an object containing an empty array under the todos key, and show all string under the visibilityFilter key.
 
+
 reducers/index.js
 
 const todoApp = combineReducers({
