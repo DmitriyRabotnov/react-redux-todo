@@ -1,4 +1,10 @@
-I'm using the links provided by React Router now, so when I click on a link, the URL gets updated. However, the content does not get updated because the VisibleTodoList component in its mapStateToProps function still depends on the visibilityFilter in the Redux store instead of reading it from the URL.
+I'm using the links provided by React Router now, so when I click on a link, the URL gets updated. 
+However, the content does not get updated because the VisibleTodoList component in its mapStateToProps 
+function still depends on the visibilityFilter in the Redux store instead of reading it from the URL.
+
+Я использую ссылки, предоставляемые React Router, поэтому, когда я нажимаю на ссылку, URL-адрес обновляется. 
+Однако содержимое не обновляется, потому что компонент VisibleTodoList в его функции mapStateToProps по-прежнему зависит 
+от visibilityFilter в хранилище Redux, а не считывает его из URL.
 
 VisibleTodoList.js
 
@@ -8,7 +14,14 @@ const mapStateToProps = (state) => ({
     state.visibilityFilter
   ),
 });
-I am adding an argument called ownProps to the mapStateToProps function, and I'm going to read the current visibilityFilter from ownProps. I will also change the getVisibleTodos function to use the current convention we use for the filter prop that is all completed or active.
+I am adding an argument called ownProps to the mapStateToProps function, and I'm going to read the current 
+visibilityFilter from ownProps. 
+I will also change the getVisibleTodos function to use the current convention we use for the filter prop that is all 
+completed or active.
+
+Я добавляю аргумент ownProps к функции mapStateToProps, и я собираюсь прочитать текущий visibilityFilter из ownProps. 
+Я также изменю функцию getVisibleTodos, чтобы использовать текущее соглашение, которое мы используем для фильтра prop, 
+который все завершен или активен.
 
 VisibleTodoList.js
 
@@ -24,7 +37,11 @@ const getVisibleTodos = (todos, filter) => {
       throw new Error('Unknown filter: ${filter}')
   } 
 }
-The VisibleTodoList component gets rendered from the app, so this is where we need to add the filter prop to make it available in the mapStateToProps function of the VisibleTodoList.
+The VisibleTodoList component gets rendered from the app, so this is where we need to add the filter prop to make it 
+available in the mapStateToProps function of the VisibleTodoList.
+
+Компонент VisibleTodoList получает визуализацию из приложения, поэтому здесь мы должны добавить фильтр prop, 
+чтобы сделать его доступным в функции mapStateToProps VisibleTodoList.
 
 App.js
 
@@ -37,7 +54,14 @@ const App = () => (
     <Footer />
   </div>
 );
-We want the filter prop to correspond to the current filter parameter in our route configuration. React Router makes such parameters available to the route handler components in a special prop called params, so I'm adding a params prop to the app, and now I can read the filter from params.filter.
+We want the filter prop to correspond to the current filter parameter in our route configuration. 
+React Router makes such parameters available to the route handler components in a special prop called params, 
+so I'm adding a params prop to the app, and now I can read the filter from params.filter.
+
+Мы хотим, чтобы фильтр prop соответствовал текущему параметру фильтра в нашей конфигурации маршрута. 
+React Router делает такие параметры доступными компонентам обработчиков маршрутов в специальном параметре, 
+называемом params, поэтому я добавляю параметр params в приложение, и теперь я могу прочитать фильтр из params.filter.
+
 
 App.js
 
@@ -50,9 +74,13 @@ const App = ({ params }) => (
     <Footer />
   </div>
 );
-Since its empty on the root path, I'm passing all as a fallback to the VisibleTodoList. Now I'll refresh the app, and as I press the visibilityFilter links, not only does the URL update, but also the console updates, even if I use back and forward buttons in the browser.
+Since its empty on the root path, I'm passing all as a fallback to the VisibleTodoList. 
+Now I'll refresh the app, and as I press the visibilityFilter links, not only does the URL update, 
+but also the console updates, even if I use back and forward buttons in the browser.
 
-[output](../images/javascript-redux-filtering-redux-state-with-react-router-params-output.png)
+Поскольку он пуст на корневом пути, я передаю все как отступ к VisibleTodoList. 
+Теперь я обновлю приложение, и когда я нажимаю ссылки visibilityFilter, обновление не только обновляется URL, 
+но и обновляется, даже если я использую кнопки «Назад» и «Вперед» в браузере.
 
 App.js
 
@@ -65,18 +93,32 @@ const App = ({ params }) => (
     <Footer />
   </div>
 );
-One common problem after enabling routing is, if we go to another path and press refresh, your dev server may not be configured correctly to serve anything but the root path.
+One common problem after enabling routing is, if we go to another path and press refresh, 
+your dev server may not be configured correctly to serve anything but the root path.
 
-[invalid](../images/javascript-redux-filtering-redux-state-with-react-router-params-invalid.png)
+Одна из распространенных проблем после включения маршрутизации заключается в том, что если мы перейдем на другой путь 
+и нажмем обновить, ваш сервер разработчика может быть неправильно настроен для обслуживания чего-либо, кроме корневого пути.
 
-I'm using Express "See Getting Started with Express.js for more information regarding Express" with webpackDevMiddleware in my development, so I just need to tell Express to serve index HTML no matter what the path is. This way, the dev server always serves the same HTML file, and React Router matches the route on the client.
+
+I'm using Express "See Getting Started with Express.js for more information regarding Express" with webpackDevMiddleware in 
+my development, so I just need to tell Express to serve index HTML no matter what the path is. 
+This way, the dev server always serves the same HTML file, and React Router matches the route on the client.
+
+Я использую Express "см. Начало работы с Express.js для получения дополнительной информации о Express" с 
+webpackDevMiddleware в моем развитии, поэтому мне просто нужно сказать Express, чтобы служить индексу HTML независимо от 
+того, какой путь. Таким образом, сервер dev всегда обслуживает один и тот же файл HTML, 
+а маршрутизатор React Router соответствует маршруту на клиенте.
 
 devServer.js
 
 app.get('/*', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
-Now that the visibilityFilter is managed by React Router, I no longer need the visibilityFilter reducer. I'm just going to delete it and also remove it from the combined reducers declaration in reducers/index.js.
+Now that the visibilityFilter is managed by React Router, I no longer need the visibilityFilter reducer. 
+I'm just going to delete it and also remove it from the combined reducers declaration in reducers/index.js.
+
+Теперь, когда visibilityFilter управляется React Router, мне больше не нужен редьюсер visibilityFilter.
+Я просто удалю его, а также удалю из декларации комбинированных редьюсеров в reducers / index.js.
 
 reducers/index.js
 
@@ -88,7 +130,15 @@ const todoApp = combineReducers({
 });
 
 export default todoApp;
-Let's recap how React Router became the source of truth for the visibilityFilter. In the root component, I render the Router, and I only have a single route with an optional :filter parameter. The :filter parameter gets passed into the {App} component by React Router. React Router will make it available inside a special { params } prop.
+Let's recap how React Router became the source of truth for the visibilityFilter. 
+In the root component, I render the Router, and I only have a single route with an optional :filter parameter. 
+The :filter parameter gets passed into the {App} component by React Router. React Router will make it available 
+inside a special { params } prop.
+
+Давайте вспомним, как React Router стал источником истины для visibilityFilter. 
+В корневом компоненте я визуализую маршрутизатор, и у меня есть только один маршрут с необязательным параметром filter. 
+Параметр: filter передается компоненту {App} в React Router. React Router сделает его доступным с помощью специального свойства
+{params}.
 
 Root.js
 
@@ -110,7 +160,12 @@ const App = ({ params }) => (
     <Footer />
   </div>
 );
-I am passing the filter param from the URL, or 'all' if we are on the root path, to the VisibleTodoList component as a filter prop. The VisibleTodoList component now reads the filter from its props and not from the state, so it uses the filter specified by the app
+I am passing the filter param from the URL, or 'all' if we are on the root path, to the VisibleTodoList component
+as a filter prop. The VisibleTodoList component now reads the filter from its props and not from the state, so it uses the filter specified by the app
+
+Я передаю параметр фильтра из URL или «все», если мы на корневом пути, компоненту VisibleTodoList в качестве фильтра. 
+Компонент VisibleTodoList теперь читает фильтр из своего свойства, а не из состояния, 
+поэтому он использует фильтр, указанный приложением
 
 VisibleTodoList.js
 
@@ -120,7 +175,14 @@ const mapStateToProps = (state, ownProps) => ({
     ownProps.filter
   ),
 });
-I change the getVisibleTodos function to use the current filter names, all, completed, and active. For consistency, the footer component now also uses these names as the value of the filter prop for the FilterLink, and I re-implemented the FilterLink to use the Link provided by React Router instead of our own implementation.
+I change the getVisibleTodos function to use the current filter names, all, completed, and active. 
+For consistency, the footer component now also uses these names as the value of the filter prop for the FilterLink, 
+and I re-implemented the FilterLink to use the Link provided by React Router instead of our own implementation.
+
+Я изменяю функцию getVisibleTodos, чтобы использовать текущие имена фильтров, все, завершенные и активные. 
+Для согласованности компонент нижнего колонтитула теперь также использует эти имена в качестве значения фильтра для 
+FilterLink, и я повторно реализовал FilterLink, чтобы использовать Link, предоставляемый React Router, 
+вместо нашей собственной реализации.
 
 FilterLink.js
 
@@ -135,13 +197,25 @@ const FilterLink = ({ filter, children }) => {
    {children}
   </Link>
 };
-Finally, I fix the dev server to correctly return index HTML no matter which path is requested, so that React Router can pick it up on the client.
+Finally, I fix the dev server to correctly return index HTML no matter which path is requested, so
+that React Router can pick it up on the client.
+
+Наконец, я исправляю сервер Dev для правильного возвращения индекса HTML независимо от того, 
+какой путь запрашивается, чтобы React Router мог забрать его на клиенте.
 
 devServer.js
 
 app.get('/*', (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
-You might think that making the router in control of the visibilityFilter contradicts the idea of a single-state tree. However, in practice, what matters is that there's just one single source of truth for any independent piece of data.
+You might think that making the router in control of the visibilityFilter contradicts the idea of a single-state tree. 
+However, in practice, what matters is that there's just one single source of truth for any independent piece of data.
 
-We're using Redux as the source of truth for the todos, and we're using React Router as the source of truth for anything that can be computed from the URL. In our case, this is the current visibilityFilter.
+Вы можете подумать, что создание маршрутизатора под контролем visibilityFilter противоречит идее дерева с одним State. 
+Однако на практике важно то, что для любой независимой части данных есть только один источник истины.
+
+We're using Redux as the source of truth for the todos, and we're using React Router as the source of truth for 
+anything that can be computed from the URL. In our case, this is the current visibilityFilter.
+
+Мы используем Redux как источник истины для todos, и мы используем React Router как источник истины для всего, 
+что можно вычислить из URL. В нашем случае это текущий видимый фильтр.
