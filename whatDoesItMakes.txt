@@ -1,6 +1,6 @@
 The links that control the visibilityFilter do not currently behave like real links. I'd like to change it so that the background works and the current URL updates when I click on these links and change the current visibilityFilter.
 
-[output](../images/javascript-redux-navigating-with-react-router-link-output.png)
+
 
 I will add a parameter to my Route called filter, and I need to wrap it in parenthesis to tell react-router that it's optional, because if it's not specified, I want to show all todos.
 
