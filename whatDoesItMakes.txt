@@ -1,5 +1,10 @@
 My mapStateToProps function uses the getVisibleTodos function, and it passes the slice of the state corresponding to the todos. However, if I ever change the state structure, I'll have to remember to update this whole side.
 
+
+Моя функция mapStateToProps использует функцию getVisibleTodos и передает срез состояния, соответствующего todos. Однако, если я когда-либо меняю Ыефеу, 
+я должен буду помнить об обновлении всей этой стороны.
+
+
 VisibleTodoList
 
 const mapStateToProps = (state, { params }) => ({
@@ -23,7 +28,9 @@ export const getVisibleTodos = (todos, filter) => {
       throw new Error(`Unknown filter: ${filter}.`);
   }
 };
-The convention I follow is simple. The default export is always the reducer function, but any named export starting with get is a function that prepares the data to be displayed by the UI. We usually call these functions selectors because they select something from the current state.
+
+The convention I follow is simple. The default export is always the reducer function, 
+but any named export starting with get is a function that prepares the data to be displayed by the UI. We usually call these functions selectors because they select something from the current state.
 
 In the reducers, the state argument corresponds to the state of this particular reducer. I'll follow the same convention in selectors, where the state argument will correspond to the state of the exported reducer in this file.
 
