@@ -1,4 +1,10 @@
-Currently, we will read the params.filter passed by the router or inside the App component. We can access the params from there, because the router injects params prop into any Route handler component specified in the route configuration. In this case, the :filter is passed inside params.
+Currently, we will read the params.filter passed by the router or inside the App component. 
+We can access the params from there, because the router injects params prop into any Route handler 
+component specified in the route configuration. In this case, the :filter is passed inside params.
+
+В настоящее время мы будем читать params.filter, передаваемый маршрутизатором или внутри компонента App. 
+Мы можем получить доступ к параметрам оттуда, потому что маршрутизатор вставляет параметр params в любой компонент обработчика маршрута, указанный в конфигурации маршрута. 
+В этом случае фильтр: передается внутри params.
 
 Root.js
 
@@ -20,7 +26,16 @@ const App = ({ params }) => (
     <Footer />
   </div>
 );
-However, the App component itself does not really use filter. It just passes the filter down to the VisibleTodoList, which uses it to calculate the currently visible todos. Passing the params from the top level of route handlers gets tedious, so I'm removing the filter prop. Instead, I'm going to find a way to read the current router params in the VisibleTodoList itself.
+However, the App component itself does not really use filter. 
+It just passes the filter down to the VisibleTodoList, which uses it to calculate the currently visible todos. 
+Passing the params from the top level of route handlers gets tedious, so I'm removing the filter prop.
+Instead, I'm going to find a way to read the current router params in the VisibleTodoList itself.
+
+Однако сам компонент App не использует фильтр. Он просто передает фильтр VisibleTodoList, 
+который использует его для вычисления видимых в настоящее время todos. 
+Передача параметров с верхнего уровня обработчиков маршрутов становится утомительной, 
+поэтому я удаляю фильтр. Вместо этого я собираюсь найти способ чтения текущих параметров маршрутизатора в 
+самом VisibleTodoList.
 
 App.js
 
@@ -31,12 +46,26 @@ const App = () => (
     <Footer />
   </div>
 );
-I will add a new import called withRouter from the react-router package. It's important that we use at least React Router 3.0 for it to work well with Redux.  withRouter, it takes a React component and returns a different React component that injects the router-related props, such as params, into your component.
+I will add a new import called withRouter from the react-router package. 
+It's important that we use at least React Router 3.0 for it to work well with Redux.  
+withRouter, it takes a React component and returns a different React component that injects the router-related props, 
+such as params, into your component.
+
+Я добавлю новый импорт с именем Router из пакета react-router. Важно, 
+чтобы мы использовали как минимум React Router 3.0, чтобы он хорошо работал с Redux. WithRouter, он принимает компонент 
+React и возвращает другой компонент React,
+который встраивает связанные с роутером элементы, такие как params, в ваш компонент.
+
 
 VisibleTodoList.js
 
 import { withRouter } from 'react-router';
-I want the params to be available inside mapStateToProps, so I need to wrap the connectresult so that the connected component gets the params as a prop.
+
+I want the params to be available inside mapStateToProps, so I need to wrap the connectresult so that 
+the connected component gets the params as a prop.
+
+Я хочу, чтобы параметры были доступны внутри mapStateToProps, поэтому мне нужно обернуть connectresult, 
+чтобы подключенный компонент получал params как prop.
 
 VisibleTodoList.js
 
@@ -44,7 +73,11 @@ const VisibleTodoList = withRouter(connect(
   mapStateToProps,
   mapDispatchToProps
 )(TodoList));
+
 I can scroll up a little bit to the mapStateToProps definition and I can change it so that, rather than read filter directly from ownProps, it's going to read it from ownProps.params.
+
+Я могу немного прокрутить страницу вниз до определения mapStateToProps, и я могу изменить его так, 
+чтобы вместо чтения фильтра напрямую из ownProps он читал его из ownProps.params.
 
 VisibleTodoList.js
 
@@ -54,21 +87,27 @@ const mapStateToProps = (state, ownProps) => ({
     ownProps.parms.filter
   ),
 });
-Finally, I specify the fallback value, just like I used to do in the app component. To make it more compact, I'm reading the params right inside the argument definition thanks to ES6's destructuring syntax.
+
+Finally, I specify the fallback value, just like I used to do in the app component. 
+To make it more compact, I'm reading the params right inside the argument definition thanks to ES6's destructuring syntax.
 
 VisibleTodoList.js
 
 const mapStateToProps = (state, { params }) => ({
   todos: getVisibleTodos(state.todos, parms.filter || 'all'),
 });
-Let's recap how we made the router params available inside the connected components' mapStateToPropsfunction. We'll read the params from the ownPropsargument, which corresponds to the props passed from the parent component. The params props specifically is passed by the component generated by withRouter call. This is how they end up in props of our connected component.
+
+Let's recap how we made the router params available inside the connected components' mapStateToPropsfunction.
+We'll read the params from the ownPropsargument, which corresponds to the props passed from the parent component. The params props specifically is passed by the component generated by withRouter call. This is how they end up in props of our connected component.
 
 VisibleTodoList.js
 
 const mapStateToProps = (state, { params }) => ({
   todos: getVisibleTodos(state.todos, parms.filter || 'all'),
 });
-withRouter passes any props through itself, so we're going to see both params, and any props passed from the app in the ownProps argument. Finally, I import withRouter from the React Router package. It only works correctly with connect since React Router 3.0, so make sure you're on the recent version.
+
+withRouter passes any props through itself, so we're going to see both params, 
+and any props passed from the app in the ownProps argument. Finally, I import withRouter from the React Router package. It only works correctly with connect since React Router 3.0, so make sure you're on the recent version.
 
 VisibleTodoList.js
 
@@ -80,4 +119,11 @@ VisibleTodoList.js
 
 import { connect } from 'react-redux';
 import { withRouter } from 'react-router';
-The params injected by withRouter are the same exact params that get injected by default into the route handler components. You can use both ways of getting to the params and even mix them, but withRouter is handy when you need to read the current params somewhere deep in the component tree.
+
+The params injected by withRouter are the same exact params that get injected by default into the route 
+handler components. You can use both ways of getting to the params and even mix them, 
+but withRouter is handy when you need to read the current params somewhere deep in the component tree.
+
+Параметры, введенные с помощью Router, являются теми же точными параметрами, которые по умолчанию вводятся в компоненты 
+обработчика маршрута. Вы можете использовать оба способа доступа к параметрам и даже смешивать их, но с withRouter удобно, 
+когда вам нужно прочитать текущие параметры где-то глубоко в дереве компонентов.
