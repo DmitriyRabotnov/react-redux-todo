@@ -1,204 +1,103 @@
-When the data is fetched asynchronously, we want to display some kind of visual cue to the user. I'm adding a condition to the render function that says that if we're fetching data, and we have no todos to show, we're going to return something like a loading indicator from the render function.
-
 VisibleTodoList.js
 
-render() {
-  const { toggleTodo, ...rest } = this.props;
-  if (isFetching && !todos.length) {
-    return <p>Loading...</p>;
-  }
+fetchData() {
+  const { filter, fetchTodos, requestTodos } = this.props;
+  requestTodos(filter);
+  fetchTodos(filter);
 }
-I will grab todos and isFetching from the props. In fact, todos is the only extra prop we need to pass to the list. Instead of using the spread operator, I'll just pass the todos directly. My mapStateToProps function already calculates the visibleTodos, and it includes the todos in the props.
-
-VisibleTodoList.js
-
-return (
-  <TodoList
-    todos={todos},
-    onTodoClick={toggleTodo}
-  />
-);
-
-const mapStateToProps = (state, { params }) => {
-  const filter = params.filter || 'all';
-  return {
-    todos: getVisibleTodos(state, filter),
-    filter,
-  };
-};
-I need to do something similar for isFetching. GetIsFetching accepts the current state of the app, and the filter for which we want to check if the todos are being fetched. It is declared alongside other top level selectors in the top level reducer file.
-
-VisibleTodoList.js
-
-import { getVisibleTodos, getIsFetching } from '../reducers';
-
-const mapStateToProps = (state, { params }) => {
-  const filter = params.filter || 'all';
-  return {
-    todos: getVisibleTodos(state, filter),
-    isFetching: getIsFetching(state, filter),
-    filter,
-  };
-};
-I am now switching to the root reducer file to add another exported named function, which is the new selector called getIsFetching. It accepts the state of the app and the filter as arguments. It delegates to another selector to find and create list that gets whether this list is currently being fetched. I am passing the state of this list, which I get from state.listByFilter.
-
-index.js
-
-export const getIsFetching = (state, filter) =>
-  fromList.getIsFetching(state.listByFilter[filter]);
-I am using a selector that I have not created yet. I will go to createList.js and add it. First, I need to modify the state shape of the list. Rather than assume the state is the array of IDs, I will assume it is an object that contains this array as a property.
-
-createList.js
-
-export const getIds = (state) => state.ids;
-export const getIsFetching = (state) => state.isFetching;
-Now I can add another selector called getIsFetching that reads another property from the state object, which is a built-in flag called isFetching. I want my reducer to keep track of both of these fields. Rather than complicate the existing reducer, I will rename it to ids, because it manages just the ids.
-
-createList.js
-
-const createList = (filter) => {
-  const ids = (state = [], action) => { ... }
-}
-I will create a separate reducer called isFetching that manages just the state of the fetching flag. Its initial state is false, and it looks just like any other reducer. I am now scrolling up to add an import for the combineReducers utility from redux.
-
-createList.js
-
-import { combineReducers } from 'redux';
-
-const createList = (filter) => {
-  const ids = (state = [], action) => { ... }
-
-  const isFetching = (state = false, action) => {
-
-  }
-}
-Now I can return a combinedReducer from createList that manages both ids and isFetching. The isFetching reducer implementation is very simple. We switch on the action type, and if it is REQUEST_TODOS, we'll return true because we started fetching.
-
-createList.js
-
-const isFetching = (state = false, action) => {
-  switch (action.type) {
-    case 'REQUEST_TODOS':
-      return true;
-    case 'RECEIVE_TODOS':
-      return false;
-    default: 
-      return state;
-  }
-}
-
-return combinedReducer({
-  ids,
-  isFetching,
-})
-If it's RECEIVE_TODOS, we'll return false because the operation has finished. For any unknown action, we'll return the current state. Now I'm scrolling back up to the ids reducer, and I will copy the condition that tells it to ignore any actions with a filter that does not match the filter argument to createList.
-
-createList.js
-
-const isFetching = (state = false, action) => {
-  if (action.filter !== filter) {
-    return state;
-  }
-  switch (action.type) {
-    case 'REQUEST_TODOS':
-      return true;
-    case 'RECEIVE_TODOS':
-      return false;
-    default: 
-      return state;
-  }
-}
-Finally, I'm handling the REQUEST_TODOS action, but I'm not dispatching it anywhere. In the file where I define the action creators, I am adding a new exported function called requestTodos that takes the filter and returns an action object describing the REQUEST_TODOS action with the corresponding filter.
-
-index.js
-
-export const requestTodos = (filter) => ({
-  type: 'REQUEST_TODOS',
-  filter,
-});
-Every exported action creator from this file will be available on the props of the visibleTodoList component. I can just structure requestTodos from the props, and I can call it right before starting the asynchronous operation with fetchTodos.
+To show the loading indicator, I dispatch the requestTodos action before I fetchTodos. It would be great if I could make requestTodos dispatched automatically when I fetch the todos because I never want to fire them separately.
 
 VisibleTodoList.js
 
 fetchData() {
-  const { filter, requestTodos, fetchTodos } = this.props;
-  requestTodos(filter);
-  fetchTodos(filter)
+  const { filter, fetchTodos } = this.props;
+  fetchTodos(filter);
 }
-If I run the app now, I will see not one, but two actions, REQUEST_TODOS, and RECEIVE_TODOS. If I look at the state after the REQUEST_TODOS action, I will see that inside the all list state, is fetching flag is set to true.
-
-[isFetching set to true](../images/javascript-redux-displaying-loading-indicators-isFetching-true.png)
-
-When the corresponding RECEIVE_TODOS action fires, the flag gets reset back to  false, and the ids are not an empty array anymore.
-
-[isFetching set to false](../images/javascript-redux-displaying-loading-indicators-isFetching-false.png)
-
-As I navigate the tabs for the first time, I see the loading indicator show up.
-
-[Loading indicator displayed](../images/javascript-redux-displaying-loading-indicators-loading.png)
-
-However, if I visit them again, I already have cached data. I prefer to show that to a loading indicator.
-
-[Cached Data Displayed](../images/javascript-redux-displaying-loading-indicators-cached-data.png)
-
-Let's recap. In the component, I dispatch an action called requestTodos before fetching them. The REQUEST_TODOS action creator returns an action object with a type of REQUEST_TODOS, and the filter that I passed.
+I'm removing the explicit requestTodos dispatch from the component, and in the file where I define the action creators, I'm no longer exporting requestTodos action creator.
 
 index.js
 
-export const requestTodos = (filter) => ({
+const requestTodos = (filter) => ({
   type: 'REQUEST_TODOS',
   filter,
 });
-I handle the REQUEST_TODOS action inside isFetching reducer, where it returns true if we began fetching. As soon as we receive the todos, it returns false, so that the loading indicator can reset. The isFetching reducer is combined with the ids reducer into a single reducer that is returned from createList.
 
-createList.js
-
-const isFetching = (state = false, action) => {
-  if (action.filter !== filter) {
-    return state;
-  }
-  switch (action.type) {
-    case 'REQUEST_TODOS':
-      return true;
-    case 'RECEIVE_TODOS':
-      return false;
-    default:
-      return state;
-  }
-
-  return combineReducers({
-    ids,
-    isFetching,
-  });
-};
-The state shape of the combinedReducer contains both ids and isFetching. We can use these fields in the corresponding selectors. State isFetching is returned by get isFetching selector inside `createList. Every list is independent.
-
-createList.js
-
-export const getIds = (state) => state.ids;
-export const getIsFetching = (state) => state.isFetching;
-The top level selector calls it with a slice of the state corresponding to the list for the given filter.
+export const receiveTodos = (filter) => ({
+  type: 'RECEIVE_TODOS',
+  filter,
+  response,
+});
+I want to dispatch requestTodos when they start fetching, and receiveTodos when they finish fetching, but the fetchTodos action creator only resolves through the receiveTodos action.
 
 index.js
 
-export const getIsFetching = (state, filter) =>
-  fromList.getIsFetching(state.listByFilter[filter]);
-The top level getIsFetching selector is called from the component in mapStateToProps.
+export const fetchTodos = (filter) =>
+  api.fetchTodos(filter).then(response =>
+  receiveTodos(filter, response)
+  );
+An action promise resolves through a single action at the end, but we want an abstraction that represents multiple actions dispatched over the period of time. This is why rather than return a promise, I want to return a function that accepts a dispatch callback argument.
 
-VisibleTodoList.js
+This lets me call dispatch as many times as I like at any point of time during the async operation. I can dispatch the requestTodos action in the beginning, and when the promise resolves, I can explicitly dispatch another receiveTodos action at the end.
 
-const mapStateToProps = (state, { params }) => {
-  const filter = params.filter || 'all';
-  return {
-    todos: getVisibleTodos(state, filter),
-    isFetching: getIsFetching(state, filter),
-    filter,
-  };
-};
-Finally, we use the isFetching prop inside the render function of our component to render a Loading... indicator if we are fetching, and there are no cached todos to show.
+index.js
 
-VisibleTodoList.js
+export const fetchTodos = (filter) => (dispatch) => {
+  dispatch(requestTodos(filter));
 
-if (isFetching && !todos.length) {
-  return <p>Loading...</p>;
+  return api.fetchTodos(filter).then(response => {
+    dispatch(receiveTodos(filter, response));
+  });
 }
+This means more typing than returning a promise, but it also gives me more flexibility. A promise can only express one async value, so fetchTodos now returns a function with a callback argument so that it can call it multiple times during the async operation.
+
+Such functions returned from other functions are often called thunks, so we're going to implement a thunk middleware to support them. I'm opening the configureStore file where I define the middleware, and I will remove the promise middleware, and I will replace it with a different middleware that I'm going to write now.
+
+The new middleware I'm writing is called the thunk middleware because it supports the dispatching of thunks, and it takes the store, the next middleware, and the action as curried arguments, just like any other middleware.
+
+If the action is not an action, but rather a function, we're going to assume that this is a thunk that wants the dispatch function to be injected into it, so I'm calling the action with store.dispatch. Otherwise, I'm just going to return the result of passing the action to the next middleware in chain.
+
+configureStore.js
+
+const thunk = (store) => (next) => (action) =>
+  typeof action === 'function' ?
+    action(store.dispatch) :
+    next(action);
+
+const configureStore = () => {
+  const middlewares = [thunk];
+
+}
+As a final step, I need to add the thunk middleware I just wrote to my array of middlewares so that it gets applied to the store. Let's recap how thunk middleware lets us dispatch multiple actions asynchronously.
+
+The thunk middleware has the same signature as all Redux middlewares. It accepts the store, the next dispatch function, and the action as curried arguments. It returns a new dispatch function that checks if the action is actually a function itself.
+
+We can see that this is the case with fetchTodos action creator. Its return value is a function that wants dispatch as its argument so that it can dispatch multiple times.
+
+index.js
+
+export const fetchTodos = (filter) => (dispatch) => {
+  dispatch(requestTodos(filter));
+
+  return api.fetchTodos(filter).then(response => {
+    dispatch(receiveTodos(filter, response));
+  });
+}
+This is why when we see an action that is really a function, a thunk, we call it with store.dispatch as an argument so that it can dispatch other actions by itself. The store.dispatch function becomes available as the dispatch argument inside the thunk.
+
+Now, the thunk can use the dispatch argument to dispatch the requestTodos action in the very beginning, and receiveTodos action at the very end. The dispatch function injected into thunks is already wrapped with the whole middleware chain, so thunks can dispatch both plain object actions and other thunks.
+
+No matter what gets dispatched, it will go through the middleware chain again, and if its type is a function, it will be called like a thunk, but otherwise, it will be passed on to the next middleware in chain.
+
+In this case, it's the logger. Only plain object actions reach the logger, and then reach the reducers.
+
+configureStore.js
+
+cosnt configureStore = () => {
+  const middlewares = [thunk];
+  if (process.env.NODE_ENV !== 'production') {
+    middlewares.push(creatLogger());
+  }
+}
+The thunk middleware is a powerful, composable way to express async action creators that want to emit several actions during the course of an async operation.
+
+This lets the components specify the intention to start an async operation without worrying which actions get dispatched and when.
