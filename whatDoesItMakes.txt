@@ -1,6 +1,14 @@
 I'm extracting the logic necessary to create the store, and to subscribe to it to persist the state into a separate file.
 
-I'm calling this file configureStore, and so I'm creating a function called configureStore that is going to contain this logic so that the app doesn't have to know exactly how the store is created and if we have any subscribe handlers on it. It can just use the return store in the index.js file.
+Я извлекаю логику, необходимую для создания хранилища, и подписываюсь на нее, чтобы сохранить состояние в отдельный файл.
+
+I'm calling this file configureStore, and so I'm creating a function called configureStore that is going to contain this 
+logic so that the app doesn't have to know exactly how the store is created and if we have any subscribe handlers on it. 
+It can just use the return store in the index.js file.
+
+Я вызываю этот файл configureStore, и поэтому я создаю функцию с именем configureStore, 
+которая будет содержать эту логику, чтобы приложение не знало точно, как создается хранилище, и 
+если у нас есть обработчики подписки на него . Он может просто использовать хранилище возвратов в файле index.js.
 
 configureStore.js
 
@@ -19,20 +27,30 @@ const configureStore = () => {
 
   return store;
 };
-It is useful to export configureStore rather than store itself, so that if you later write some tests, you can easily create as many store instances as you want. Now I can import configureStore from my application's entry point, and I can use it right away without having to specify the reducer or the subscribers, because configureStore takes care of that.
+It is useful to export configureStore rather than store itself, so that if you later write some tests, you can easily 
+create as many store instances as you want. Now I can import configureStore from my application's entry point, 
+and I can use it right away without having to specify the reducer or the subscribers, because configureStore takes care of that.
+
+Полезно экспортировать configureStore, а не сам Store, поэтому, если позднее вы напишете некоторые тесты, вы можете легко
+cоздатm столько экземпляров хранилища, сколько захотите. Теперь я могу импортировать configureStore из точки входа моего приложения,
+И я могу использовать его сразу, без указания редуктора или подписчиков, потому что configureStore позаботится об этом.
 
 index.js
 
 import configure from './configureStore';
 
 const store = configureStore();
-I also want to extract the root rendered element into a separate component that I'm going to call Root. It's going to accept the store as a prop, and it's going to be defined in a separate file in the components folder.
+
+I also want to extract the root rendered element into a separate component that I'm going to call Root. 
+It's going to accept the store as a prop, and it's going to be defined in a separate file in the components folder.
 
 render(
   <Root store={store} />
   document.getElementById('root')
 );
-I'm creating a new file called Root. It needs to import React to use the JSX syntax, and I define a stateless functional component that just takes the store as a prop and returns an app inside a React Redux Provider.
+
+I'm creating a new file called Root. It needs to import React to use the JSX syntax, and I 
+define a stateless functional component that just takes the store as a prop and returns an app inside a React Redux Provider.
 
 Root.js
 
@@ -48,7 +66,16 @@ I need to import Provider from React Redux, and also import the App component th
 index.js
 
 import Root from './components/Root'
-Let's recap our refactoring. I moved all the code that is necessary for creating the  store into a separate module. This module exports a function called configureStore. It takes care of creating the store with the right reducer and the right initial state, and setting up any kinds of subscriptions, so that it returns a store that is ready for consumption by my application.
+
+Let's recap our refactoring. I moved all the code that is necessary for creating the  store into a separate module. 
+This module exports a function called configureStore. 
+It takes care of creating the store with the right reducer and the right initial state, and setting up any kinds of 
+subscriptions, so that it returns a store that is ready for consumption by my application.
+
+Давайте вспомним наш рефакторинг. Я переместил весь код, необходимый для создания Store, в отдельный модуль. 
+Этот модуль экспортирует функцию, называемую configureStore. Она заботится о создании Store с правильным Reducer и 
+правильном начальном состоянии и настройке любых видов подписок, 
+чтобы он возвращал Store, готовый для использования моим приложением.
 
 configureStore.js
 
@@ -67,4 +94,5 @@ const configureStore = () => {
 
   return store;
 };
-I also moved the Root component into a separate file. Currently, it is very simple. It just wraps the app into React Redux Provider. In the future, we can add something like a router here.
+I also moved the Root component into a separate file. Currently, it is very simple. 
+It just wraps the app into React Redux Provider. In the future, we can add something like a router here.
