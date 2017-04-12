@@ -1,204 +1,407 @@
-When the data is fetched asynchronously, we want to display some kind of visual cue to the user. I'm adding a condition to the render function that says that if we're fetching data, and we have no todos to show, we're going to return something like a loading indicator from the render function.
+Sometimes API requests fail, and I will simulate this by throwing inside the fake API client so that it returns a reject promise. If I run the app the loading indicator gets stuck because isFetching and flag get set to two, but there is no corresponding RECEIVE_TODOS action to set it to falls back again.
 
-VisibleTodoList.js
+[console output](../images/javascript-redux-displaying-error-messages-output.png)
 
-render() {
-  const { toggleTodo, ...rest } = this.props;
-  if (isFetching && !todos.length) {
-    return <p>Loading...</p>;
-  }
-}
-I will grab todos and isFetching from the props. In fact, todos is the only extra prop we need to pass to the list. Instead of using the spread operator, I'll just pass the todos directly. My mapStateToProps function already calculates the visibleTodos, and it includes the todos in the props.
+To fix this, I will start with the action creators file. First of all, I'll do a little cleanup. The REQUEST_TODOS action is never used outside of fetchTodos so I want to embed the object literal right inside fetch todos for clarity.
 
-VisibleTodoList.js
+actions/index.js
 
-return (
-  <TodoList
-    todos={todos},
-    onTodoClick={toggleTodo}
-  />
+dispatch({
+  type: `REQUEST_TODOS`,
+  filter,
+});
+I will do the same for RECEIVE_TODOS. I will copy the ofbject literal for the REVEIVE_TODOS action and paste it where I dispatch it inside fetchTodos so it's easier to see the flow of fetchTodos action. I want to tweak the indentation a little bit to prepare for adding the second argument to promise.then method, the rejection handler.
+
+actions/index.js
+
+return api.fetchTodos(filter).then(
+  response => {
+    dispatch({
+      type: 'RECEIVE_TODOS',
+      filter,
+      response,
+    });
+  },
+  error => {
+
+  };
 );
+Now that the fetchTodos action creator dispatches quite a bit of actions, I want to rename them to a consistent naming scheme such as FETCH_TODOS_REQUEST, for requesting the todos, FETCH_TODOS_SUCCESS, for successful fetching the todos and FETCH_TODO_FAILURE for failing to fetch the todos.
 
-const mapStateToProps = (state, { params }) => {
-  const filter = params.filter || 'all';
-  return {
-    todos: getVisibleTodos(state, filter),
-    filter,
-  };
+I will pass two additional pieces of data, the filter and the error message, that I get the reading the error message field if specified or something went wrong as a fallback. The fetchTodos action creator now handles all the cases.
+
+actions/index.js
+
+export const fetchTodos = (filter) => (dispatch, getState) => {
+  if (getIsFetching(getState(), filter)) {...}
+
+  dispatch({...})
+
+  return api.fetchTodos(filter).then(
+    response => {...},
+    error => {
+      dispatch({
+        type: 'FETCH_TODOS_FAILURE',
+        filter,
+        message: error.message || 'Something went wrong.',
+      });
+    }
+  );
 };
-I need to do something similar for isFetching. GetIsFetching accepts the current state of the app, and the filter for which we want to check if the todos are being fetched. It is declared alongside other top level selectors in the top level reducer file.
-
-VisibleTodoList.js
-
-import { getVisibleTodos, getIsFetching } from '../reducers';
-
-const mapStateToProps = (state, { params }) => {
-  const filter = params.filter || 'all';
-  return {
-    todos: getVisibleTodos(state, filter),
-    isFetching: getIsFetching(state, filter),
-    filter,
-  };
-};
-I am now switching to the root reducer file to add another exported named function, which is the new selector called getIsFetching. It accepts the state of the app and the filter as arguments. It delegates to another selector to find and create list that gets whether this list is currently being fetched. I am passing the state of this list, which I get from state.listByFilter.
-
-index.js
-
-export const getIsFetching = (state, filter) =>
-  fromList.getIsFetching(state.listByFilter[filter]);
-I am using a selector that I have not created yet. I will go to createList.js and add it. First, I need to modify the state shape of the list. Rather than assume the state is the array of IDs, I will assume it is an object that contains this array as a property.
-
-createList.js
-
-export const getIds = (state) => state.ids;
-export const getIsFetching = (state) => state.isFetching;
-Now I can add another selector called getIsFetching that reads another property from the state object, which is a built-in flag called isFetching. I want my reducer to keep track of both of these fields. Rather than complicate the existing reducer, I will rename it to ids, because it manages just the ids.
+I can also remove the old action creators that I have aligned into it. If I change the action types, I also need to change the corresponding reducers so I'm opening the ids reducer and rather than handle it now needs to handle FETCH_TODOS_SUCCESS.
 
 createList.js
 
 const createList = (filter) => {
-  const ids = (state = [], action) => { ... }
-}
-I will create a separate reducer called isFetching that manages just the state of the fetching flag. Its initial state is false, and it looks just like any other reducer. I am now scrolling up to add an import for the combineReducers utility from redux.
-
-createList.js
-
-import { combineReducers } from 'redux';
-
-const createList = (filter) => {
-  const ids = (state = [], action) => { ... }
-
-  const isFetching = (state = false, action) => {
-
-  }
-}
-Now I can return a combinedReducer from createList that manages both ids and isFetching. The isFetching reducer implementation is very simple. We switch on the action type, and if it is REQUEST_TODOS, we'll return true because we started fetching.
-
-createList.js
-
-const isFetching = (state = false, action) => {
-  switch (action.type) {
-    case 'REQUEST_TODOS':
-      return true;
-    case 'RECEIVE_TODOS':
-      return false;
-    default: 
+  const ids = (state = [], action) => {
+    if (filter !== action.filter) {
       return state;
-  }
-}
-
-return combinedReducer({
-  ids,
-  isFetching,
-})
-If it's RECEIVE_TODOS, we'll return false because the operation has finished. For any unknown action, we'll return the current state. Now I'm scrolling back up to the ids reducer, and I will copy the condition that tells it to ignore any actions with a filter that does not match the filter argument to createList.
+    }
+    switch (action.type) {
+      case 'FETCH_TODOS_SUCCESS':
+        return action.response.map(todo => todo.id);
+      default:
+        return state;
+    }
+  };
+I also need to change the isFetching reducer. I'm renaming the REQUEST_TODOS the FETCH_TODOS_REQUEST and RECEIVE_TODOS, FETCH_TODOS_SUCCESS I also want to handle FETCH_TODOS_FAILURE and return false so that the loading indicator doesn't get stuck.
 
 createList.js
 
 const isFetching = (state = false, action) => {
-  if (action.filter !== filter) {
+  if (filter !== action.filter) {
     return state;
   }
   switch (action.type) {
-    case 'REQUEST_TODOS':
+    case 'FETCH_TODOS_REQUEST':
       return true;
-    case 'RECEIVE_TODOS':
-      return false;
-    default: 
-      return state;
-  }
-}
-Finally, I'm handling the REQUEST_TODOS action, but I'm not dispatching it anywhere. In the file where I define the action creators, I am adding a new exported function called requestTodos that takes the filter and returns an action object describing the REQUEST_TODOS action with the corresponding filter.
-
-index.js
-
-export const requestTodos = (filter) => ({
-  type: 'REQUEST_TODOS',
-  filter,
-});
-Every exported action creator from this file will be available on the props of the visibleTodoList component. I can just structure requestTodos from the props, and I can call it right before starting the asynchronous operation with fetchTodos.
-
-VisibleTodoList.js
-
-fetchData() {
-  const { filter, requestTodos, fetchTodos } = this.props;
-  requestTodos(filter);
-  fetchTodos(filter)
-}
-If I run the app now, I will see not one, but two actions, REQUEST_TODOS, and RECEIVE_TODOS. If I look at the state after the REQUEST_TODOS action, I will see that inside the all list state, is fetching flag is set to true.
-
-[isFetching set to true](../images/javascript-redux-displaying-loading-indicators-isFetching-true.png)
-
-When the corresponding RECEIVE_TODOS action fires, the flag gets reset back to  false, and the ids are not an empty array anymore.
-
-[isFetching set to false](../images/javascript-redux-displaying-loading-indicators-isFetching-false.png)
-
-As I navigate the tabs for the first time, I see the loading indicator show up.
-
-[Loading indicator displayed](../images/javascript-redux-displaying-loading-indicators-loading.png)
-
-However, if I visit them again, I already have cached data. I prefer to show that to a loading indicator.
-
-[Cached Data Displayed](../images/javascript-redux-displaying-loading-indicators-cached-data.png)
-
-Let's recap. In the component, I dispatch an action called requestTodos before fetching them. The REQUEST_TODOS action creator returns an action object with a type of REQUEST_TODOS, and the filter that I passed.
-
-index.js
-
-export const requestTodos = (filter) => ({
-  type: 'REQUEST_TODOS',
-  filter,
-});
-I handle the REQUEST_TODOS action inside isFetching reducer, where it returns true if we began fetching. As soon as we receive the todos, it returns false, so that the loading indicator can reset. The isFetching reducer is combined with the ids reducer into a single reducer that is returned from createList.
-
-createList.js
-
-const isFetching = (state = false, action) => {
-  if (action.filter !== filter) {
-    return state;
-  }
-  switch (action.type) {
-    case 'REQUEST_TODOS':
-      return true;
-    case 'RECEIVE_TODOS':
+    case 'FETCH_TODOS_SUCCESS':
+    case 'FETCH_TODOS_FAILURE':
       return false;
     default:
       return state;
   }
-
-  return combineReducers({
-    ids,
-    isFetching,
-  });
 };
-The state shape of the combinedReducer contains both ids and isFetching. We can use these fields in the corresponding selectors. State isFetching is returned by get isFetching selector inside `createList. Every list is independent.
+The last reducer I need to change is byId, and I just replace RECEIVE_TODOS with FETCH_TODO_SUCCESS.
 
-createList.js
+byId
 
-export const getIds = (state) => state.ids;
-export const getIsFetching = (state) => state.isFetching;
-The top level selector calls it with a slice of the state corresponding to the list for the given filter.
+const byId = (state = {}, action) => {
+  switch (action.type) {
+    case 'FETCH_TODOS_SUCCESS': // eslint-disable-line no-case-declarations
+      const nextState = { ...state };
+      action.response.forEach(todo => {
+        nextState[todo.id] = todo;
+      });
+If I run the app now the loading indicator does not get stuck, because a corresponding failure action fires and so isFetching gets reset back to false again.
 
-index.js
+[console output two](../images/javascript-redux-displaying-error-messages-output2.png)
 
-export const getIsFetching = (state, filter) =>
-  fromList.getIsFetching(state.listByFilter[filter]);
-The top level getIsFetching selector is called from the component in mapStateToProps.
+Let's display the error to the user. I have created a new file where I import react. I'm declaring a new functional stateless component called FetchError that takes the message as a prop, which is a string, and onRetry as a prop, which is a function.
 
-VisibleTodoList.js
+FetchError
+
+import React from 'react';
+
+const FetchError = ({ message, onRetry }) => (
+
+);
+The render deep will contain the children, an error saying that something bad happened including the message that is passed in the props, and a button that when clicked will invoke the onRetry callback prop so that the user can retry fetching the data.
+
+FetchError
+
+import React from 'react';
+
+const FetchError = ({ message, onRetry }) => (
+  <div>
+    <p>Could not fetch todos. {message}</p>
+    <button onClick={onRetry}>Retry</button>
+  </div>
+);
+I am exporting this component as a default export from FetchError, and I'm going to the visibleTodoList where I want to use it. I'm adding FetchError as an import to the visibleTodoList, and I'm scrolling down to the render method.
+
+I will need the error message which I'm de-structuring from the props of visibleTodoList component, and inside the render method I will add another condition saying that if we have an error message in our props and we have no todos to display then I'm going to return the FetchError component.
+
+visibleTodoList.js
+
+render() {
+  const { isFetching, errorMessage, toggleTodo, todos } = this.props;
+  if (isFetching && !todos.length) {
+    return <p>Loading...</p>;
+  }
+  if (errorMessage && !todos.length) {
+    return (
+      <FetchError/>
+    );
+  }
+The FetchError component itself wants a message prop which I can pass the errorMessage prop I just de-structured and an onRetry callback prop for which I will pass an arrow function that calls this this.fetchData to restart the data fetching process.
+
+visibleTodoList
+
+<FetchError
+  message={errorMessage}
+  onRetry={() => this.fetchData()}
+/>
+In order to get the error message into the props I'll need to scroll down to my mapStateToProps implementation and put it there. I will use the same pattern as I currently do with isFetching, and I will get the error message prop by calling a selector called getErrorMessage passing the state of the app and the filter.
+
+VisibleTodoList
 
 const mapStateToProps = (state, { params }) => {
   const filter = params.filter || 'all';
   return {
-    todos: getVisibleTodos(state, filter),
     isFetching: getIsFetching(state, filter),
+    errorMessage: getErrorMessage(state, filter),
+    todos: getVisibleTodos(state, filter),
     filter,
   };
 };
-Finally, we use the isFetching prop inside the render function of our component to render a Loading... indicator if we are fetching, and there are no cached todos to show.
+The getErrorMessage selector does not exist yet so I need to scroll up to where I import the selectors from the root reducers file, and I will add getErrorMessage alongside getIsFetching. Inside the root reducers file I'm copy/paste in the getIsFetching selector, and I'm changing the name to get error message. It will also delegate to a selector with a same name defined in the createList.js.
+
+reducers/index.js
+
+export const getIsFetching = (state, filter) =>
+  fromList.getIsFetching(state.listByFilter[filter]);
+
+export const getErrorMessage = (state, filter) =>
+  fromList.getErrorMessage(state.listByFilter[filter]);
+Inside createList.js, I'm adding a new exported selector called getErrorMessage that takes the state of the list and returns a property called errorMessage. Finally, I need to add a reducer managing the errorMessage field which I will add to the combinedReducers later.
+
+createList.js
+
+export const getErrorMessage = (state) => state.errorMessage;
+I'm declaring a new reducer called errorMessage with the initial state of null. A reducer cannot have undefined initial state so I have to make its absence explicit. Like in the other reducers in this file, I want to skip any actions with the filter that doesn't match the filter specified as an argument to createList.
+
+createList.js
+
+const errorMessage = (state = null, action) => {
+  if (filter !== action.filter) {
+    return state;
+  }
+};
+When the filter matches, I want to handle a few actions. I would like to display an error message whenever I get a failure so I handle a FETCH_TODOS_FAILURE by returning the message embedded the action.
+
+createList.js
+
+const errorMessage = (state = null, action) => {
+  if (filter !== action.filter) {...}
+  switch (action.type) {
+    case 'FETCH_TODOS_FAILURE':
+      return action.message;
+  }
+};
+If the user retries a request I want to clear the error message so I handle a fetch FETCH_TODOS_REQUEST and FETCH_TODOS_SUCCESS by returning null. Finally, for any other action, I'll just return the current state. The errorMessage reducer needs to be added to the combineReducers for the list so that its state becomes available on the listState object.
+
+createList.js
+
+const errorMessage = (state = null, action) => {
+  if (filter !== action.filter) {...}
+  switch (action.type) {
+    case 'FETCH_TODOS_FAILURE':
+      return action.message;
+    case 'FETCH_TODOS_REQUEST':
+    case 'FETCH_TODOS_SUCCESS':
+      return null;
+    default:
+      return state; 
+  }
+};
+
+return combineReducers({
+  ids,
+  isFetching,
+  errorMessage,
+});
+Now I will change my API layer so it doesn't throw every time. This way I'll get a chance to test how well the retry button works. If I run the app now, I can see the failure action being omitted with the corresponding message.
+
+api/index.js
+
+export const fetchTodos = (filter) => 
+  delay(500).then(() => {
+    if (Math.random() > 0.5) {
+      throw new Error('Boom!');
+    }
+[FETCHTODOSFAILURE](../images/javascript-redux-displaying-error-messages-output3.png)
+
+Thanks to the new reducer, this message will now make its way into the next state inside listByFilter, all, errorMessage and so the component can display it. If I press the retry button, the request action will clear the error message and then the success action will populate the list of todos.
+
+[FETCHTODOSSUCCESS](../images/javascript-redux-displaying-error-messages-output4.png)
+
+Let's recap how we handle errors for every list independently. Inside the fake API client, I randomly throw an error so fetchTodos returns a rejected promise once in a while. Having separate action creators for request success and failure cases seemed like overkill. I in-lined the corresponding action objects right inside the async action creator.
+
+actions/index.js
+
+dispatch({
+  type: 'FETCH_TODOS_REQUEST',
+  filter,
+});
+
+return api.fetchTodos(filter).then(
+  response => {
+    dispatch({
+      type: 'FETCH_TODOS_SUCCESS',
+      filter,
+      response,
+    });
+  },
+I also renamed them to FETCH_TODOS_REQUEST, FETCH_TODOS_SUCCESS, and I added a new FETCH_TODOS_FAILURE action so that we can reset the loading indicator and display the error message.
+
+actions/index.js
+
+error => {
+  dispatch({
+    type: 'FETCH_TODOS_FAILURE',
+    filter,
+    message: error.message || 'Something went wrong.',
+  });
+}
+I am passing the rejection handler as a second argument to the promise.then method. If the promise returned by the API gets rejected, this function will be called with the error as the argument.
+
+You might have seen a different way of handling promise errors in some examples where only one argument is passed and then you call catch on the resulting promise. The downside of this approach is if one of your reducers or subscribe components throws while handling this action you'll get into the catch block and so you'll display an internal error message to the user.
+
+actions/index.js
+
+return api.fetchTodos(filter).then(
+  response => {
+    dispatch({
+      type: 'FETCH_TODOS_SUCCESS',
+      filter,
+      response,
+    });
+  },
+).catch(
+  error => {
+    dispatch({
+      type: 'FETCH_TODOS_FAILURE',
+      filter,
+      message: error.message || 'Something went wrong.',
+    });
+  }
+)
+To avoid this error, I recommend that you don't use catch in this scenario and just pass the second argument so it catches only the errors from the underlying API promise. The error object usually comes with a message that we can wrap or display directly to the user with a fallback.
+
+actions/index.js
+
+error => {
+  dispatch({
+    type: 'FETCH_TODOS_FAILURE',
+    filter,
+    message: error.message || 'Something went wrong.',
+  });
+}
+We make it available to the reducers as the message field on the action object. I renamed the action types so I also needed to update the reducer inside byId.js and the reducers inside createList.js to use the new names.
+
+byId.js
+
+const byId = (state = {}, action) => {
+  switch (action.type) {
+    case 'FETCH_TODOS_SUCCESS': // eslint-disable-line no-case-declarations
+createList.js
+
+const createList = (filter) => {
+  const ids = (state = [], action) => {
+    if (filter !== action.filter) {
+      return state;
+    }
+    switch (action.type) {
+      case 'FETCH_TODOS_SUCCESS':
+We only want to update the IDs on a successful fetch. However, we want to update the indicator in all three cases. In particular, I reset the loading indicator both on success and on failure. I also added a new reducer that keeps track of the error message for the given tab.
+
+createList.js
+
+const isFetching = (state = false, action) => {
+  if (filter !== action.filter) {
+    return state;
+  }
+  switch (action.type) {
+    case 'FETCH_TODOS_REQUEST':
+      return true;
+    case 'FETCH_TODOS_SUCCESS':
+    case 'FETCH_TODOS_FAILURE':
+      return false;
+    default:
+      return state;
+  }
+};
+
+
+const errorMessage = (state = null, action) => {...}
+When the request fails, its state becomes the message from the action. But if it succeeds or if a new request starts, it is reset to null. Like in other reducers in this file, we are only handling actions that have the same filter as the filter this list was created with.
+
+createList
+
+const errorMessage = (state = null, action) => {
+  if (filter !== action.filter) {
+    return state;
+  }
+  switch (action.type) {
+    case 'FETCH_TODOS_FAILURE':
+      return action.message;
+    case 'FETCH_TODOS_REQUEST':
+    case 'FETCH_TODOS_SUCCESS':
+      return null;
+    default:
+      return state;
+  }
+};
+The return combineReducers now manages both isFetching and the currently displayed error message. This lets me add a new selected called getErrorMessage that just reads the error message field from the combined state object.
+
+createList.js
+
+export const getErrorMessage = (state) => state.errorMessage;
+I'm calling this selector from the top level reducer file, and I'm passing the slice of the state corresponding to the list for the specified filter. The top level getErrorMessage selector will be called inside mapStateToProps of the visibleTodoList component.
+
+reducers/index.js
+
+export const getErrorMessage = (state, filter) =>
+  fromList.getErrorMessage(state.listByFilter[filter]);
+It receives the global state and the current filter as arguments, and the result will be available as errorMessage prop inside the visibleTodoList components render function.
 
 VisibleTodoList.js
 
-if (isFetching && !todos.length) {
-  return <p>Loading...</p>;
-}
+cosnt mapStateToProps = (state, { params }) => {
+  const filter = params.filter || 'all';
+  return {
+    isFetching: getIsFetching(state, filter),
+    errorMessage: getErrorMessage(state, filter),
+    todos: getVisibleTodos(state, filter),
+    filter,
+  };
+};
+I'm de-structuring the errorMessage from the props, and if I have an errorMessage and no todo list to show I will render the FetchError component passing the errorMessage and a function that refetches the data as the props.
+
+VisibleTodoList.js
+
+render() {
+  const { isFetching, errorMessage, toggleTodo, todos } = this.props;
+  if (isFetching && !todos.length) {
+    return <p>Loading...</p>;
+  }
+  if (errorMessage && !todos.length) {
+    return (
+      <FetchError
+        message={errorMessage}
+        onRetry={() => this.fetchData()}
+      />
+    );
+  }
+Finally, I created a new component called FetchError that displays the message from the props and renders a button that lets the user retry the fetch action.
+
+FetchError.js
+
+const FetchError = ({ message, onRetry }) => (
+  <div>
+    <p>Could not fetch todos. {message}</p>
+    <button onClick={onRetry}>Retry</button>
+  </div>
+);
+
+Featured course:
+
+Learn the Best and Most Useful SCSS
+Learn the Best and Most Useful SCSS
+
+React
+Free React/Redux Cheatsheets
+ Egghead react cheat sheet 0 14 7 preview
+Egghead redux cheat sheet 3 2 1 preview
+click here to download
