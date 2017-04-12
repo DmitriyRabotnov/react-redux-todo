@@ -1,5 +1,9 @@
 Now that my state shape is more complex, I want to override the store.dispatch function to add some console logs there so that I can see how the state is affected by the actions.
 
+Теперь, когда моя форма состояния сложнее, я хочу переопределить функцию store.dispatch, 
+чтобы добавить туда некоторые журналы консоли, чтобы я мог видеть, 
+как на состояние влияют действия.
+
 configureStore
 
 const configureStore = () => {
