@@ -1,8 +1,9 @@
-My mapStateToProps function uses the getVisibleTodos function, and it passes the slice of the state corresponding to the todos. However, if I ever change the state structure, I'll have to remember to update this whole side.
+My mapStateToProps function uses the getVisibleTodos function, and it passes the slice of the state corresponding to 
+the todos. However, if I ever change the state structure, I'll have to remember to update this whole side.
 
 
-Моя функция mapStateToProps использует функцию getVisibleTodos и передает срез состояния, соответствующего todos. Однако, если я когда-либо меняю Ыефеу, 
-я должен буду помнить об обновлении всей этой стороны.
+Моя функция mapStateToProps использует функцию getVisibleTodos и передает срез состояния, соответствующего todos. 
+Однако, если я когда-либо меняю State, я должен буду помнить об обновлении всей этой стороны.
 
 
 VisibleTodoList
@@ -10,9 +11,11 @@ VisibleTodoList
 const mapStateToProps = (state, { params }) => ({
   todos: getVisibleTodos(state.todos, params.filter || 'all')
 });
+
 Alternatively, I can move the getVisibleTodos function out of my view layer and place it in the file that knows best about the state.todos internal structure.
 
-The file that determines the internal structure of todos is the file that contains the todos reducer. This is why I'm placing my getVisibleTodos implementation right into the file with reducers, and I'm making it a named export.
+The file that determines the internal structure of todos is the file that contains the todos reducer. 
+This is why I'm placing my getVisibleTodos implementation right into the file with reducers, and I'm making it a named export.
 
 todos.js
 
@@ -30,9 +33,21 @@ export const getVisibleTodos = (todos, filter) => {
 };
 
 The convention I follow is simple. The default export is always the reducer function, 
-but any named export starting with get is a function that prepares the data to be displayed by the UI. We usually call these functions selectors because they select something from the current state.
+but any named export starting with get is a function that prepares the data to be displayed by the UI. 
+We usually call these functions selectors because they select something from the current state.
 
-In the reducers, the state argument corresponds to the state of this particular reducer. I'll follow the same convention in selectors, where the state argument will correspond to the state of the exported reducer in this file.
+Конвенция, которой я следую, проста. Экспорт по умолчанию всегда является функцией редьюсера,
+Но любой именованный экспорт, начинающийся с get, является функцией, которая подготавливает данные, 
+отображаемые пользовательским интерфейсом.
+Мы обычно называем эти функции селекторами, потому что они выбирают что-то из текущего состояния.
+
+In the reducers, the state argument corresponds to the state of this particular reducer. 
+I'll follow the same convention in selectors, where the state argument will correspond to the state 
+of the exported reducer in this file.
+
+В редьюсерах аргумент State передается в состояние конкретного редьюсера.
+Я буду придерживаться того же правила в селекторах, где аргумент состояния будет соответствовать состоянию 
+экспортируемого редьюсера в этом файле.
 
 todos.js
 
@@ -48,21 +63,39 @@ export const getVisibleTodos = (state, filter) => {
       throw new Error(`Unknown filter: ${filter}.`);
   }
 };
-Going back to my component, I still depend on the state structure because I read the todos from the state. The actual method of reading todos may change in the future.
+
+Going back to my component, I still depend on the state structure because I read the todos from the state. 
+The actual method of reading todos may change in the future.
 
 VisibleTodoList
 
 const mapStateToProps = (state, { params }) => ({
   todos: getVisibleTodos(state.todos, params.filter || 'all')
 });
-I am opening the file that contains the root reducer, and I add a named selector export there, as well. It is also called getVisibleTodos, and it also accepts the state and the filter, but the state corresponds to the state of the combined reducer.
+
+I am opening the file that contains the root reducer, and I add a named selector export there, as well. 
+It is also called getVisibleTodos, and it also accepts the state and the filter, but the state corresponds 
+to the state of the combined reducer.
 
 index.js
 
 export const getVisibleTodos = (state, filter) =>
-Now I want to call the getVisibleTodos function defined in the todos file alongside the reducer, but I can't use a named import because I have function with exactly the same name in the scope.
 
-This is why I'm using the namespace import syntax that puts all the exports on an object, called fromTodos in this case, so I can use fromTodos.getVisibleTodos to call this function I defined in the other file, and pass the slice of the state corresponding to the todos.
+Now I want to call the getVisibleTodos function defined in the todos file alongside the reducer, 
+but I can't use a named import because I have function with exactly the same name in the scope.
+
+Теперь я хочу вызвать функцию getVisibleTodos, определенную в файле todos, вместе с редьюсером, 
+но я не могу использовать именованный импорт, потому что у меня есть функция с точно таким же именем в области.
+
+This is why I'm using the namespace import syntax that puts all the exports on an object, 
+called fromTodos in this case, so I can use fromTodos.getVisibleTodos to call this function I defined in the other file, and pass the slice of the state corresponding to the todos.
+
+Вот почему я использую синтаксис импорта пространства имен, который помещает все экспорты в объект, 
+называемый fromTodos, в этом случае, поэтому я могу использовать fromTodos.getVisibleTodos для вызова этой функции, 
+определенной в другом файле, и передать срез Состояние, соответствующее todos.
+
+
+
 
 index.js
 
