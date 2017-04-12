@@ -56,6 +56,10 @@ VisibleTodoList.js
 // });
 However, it is very common that the arguments passed through the callback props are passed through to the action creators in the same order. In this case, rather than write mapDispatchToProps function yourself, it can pass a configuration object that maps the names of the callback props to the corresponding action creator functions.
 
+Однако очень часто аргументы, передаваемые через реквизиты обратного вызова, передаются Action Creators в том же порядке. 
+В этом случае вместо того, чтобы писать функцию mapDispatchToProps самостоятельно, он может передать объект конфигурации,
+ который сопоставляет имена реквизитов обратного вызова с соответствующими функциями создателя действий.
+
 VisibleTodoList.js
 
 const VisibleTodoList = withRouter(connect(
