@@ -1,4 +1,8 @@
-To add React Router to the project, I'm running npm install --save react-router. I'm going to import the Router component from it, as well as the Route configuration component. Now I can replace my app with the Router, and it's important that it's inside Provider so that any components rendered by the Router still have access to the store.
+To add React Router to the project, 
+I'm running npm install --save react-router. 
+I'm going to import the Router component from it, as well as the Route configuration component. 
+Now I can replace my app with the Router, and it's important that it's inside Provider so that any 
+components rendered by the Router still have access to the store.
 
 Root.js
 
@@ -12,13 +16,24 @@ const Root = ({ store }) => (
     </Router>
   </Provider>
 );
-Inside, I put a single Route element that tells React Router that I want to render my App component at the root path. If I run the app, I can see that the Router matched the path correctly and rendered the App component.
+Inside, I put a single Route element that tells React Router that I want to render my App component at the root path. 
+If I run the app, I can see that the Router matched the path correctly and rendered the App component.
 
-[output](../images/javascript-redux-adding-react-router-to-the-project-output.png)
+Внутри я помещаю единственный элемент Route, который сообщает React Router, что я хочу визуализировать компонент App в корневом каталоге.
+Если я запустил приложение, я вижу, что Router правильно соответствует пути и отображает компонент App.
 
-If you see weird symbols after a hash sign in the address bar, it means that you're using the version of React Router that doesn't yet default to the browserHistory, and defaults to hash history instead.
+If you see weird symbols after a hash sign in the address bar, it means that you're using the version of 
+React Router that doesn't yet default to the browserHistory, and defaults to hash history instead.
 
-To fix it, you can import browserHistory from React Router and pass it as a history prop to Router. Unless you target very old browsers like IE9, you can always use browserHistory and have a clean URL in the address bar.
+Если вы видите странные символы после знака решетки в адресной строке, это означает, что вы используете версию
+React Router, который по умолчанию не установлен в browserHistory, и вместо этого использует хеш-историю.
+
+To fix it, you can import browserHistory from React Router and pass it as a history prop to Router. 
+Unless you target very old browsers like IE9, you can always use browserHistory and have a clean URL in the address bar.
+
+Чтобы исправить это, вы можете импортировать browserHistory из React Router и передать его как опору истории в Router.
+Если вы не нацелены на очень старые браузеры, такие как IE9, вы всегда можете использовать browserHistory и 
+иметь чистый URL-адрес в адресной строке.
 
 Root.js
 
@@ -32,12 +47,26 @@ const Root = ({ store }) => (
     </Router>
   </Provider>
 );
-Let's recap the changes we made to add React Router to the application. I ran npm install --save react-router, and I imported the Router component and the Route configuration component from React Router.
+
+Let's recap the changes we made to add React Router to the application. I ran npm install --save react-router, 
+and I imported the Router component and the Route configuration component from React Router.
+
+Давайте вернемся к изменениям, которые мы внесли для добавления React Router в приложение. 
+Я запускал npm install --save react-router, и я импортировал компонент Router и конфигурационный компонент Route из 
+React Router.
 
 Root.js
 
 import { Router, Route browserHistory} from 'react-router';
-Instead of rendering the app directly, I replaced it with a Router component that has a single route at the root path that renders the App component. In order to avoid hash sign and weird symbols after it, I imported browserHistory, and I passed it as the history prop to the Router component.
+
+Instead of rendering the app directly, I replaced it with a Router component that has a single route at the 
+root path that renders the App component. In order to avoid hash sign and weird symbols after it, I imported browserHistory, 
+and I passed it as the history prop to the Router component.
+
+Вместо того, чтобы визуализировать приложение напрямую, я заменил его компонентом Router, 
+который имеет единственный маршрут в корневом каталоге, который отображает компонент App. 
+Чтобы избежать хэш-знака и странных символов после него, я импортировал browserHistory, и я 
+передал его как history prop для компонента Router.
 
 Root.js
 
