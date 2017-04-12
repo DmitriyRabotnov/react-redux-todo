@@ -1,182 +1,238 @@
-I added a couple of new functions to the fake API client, in addition to fetchTodos, to prepare for this and the next lessons.
-
-The first new fake API endpoint is called addTodo. It simulates a network connection, and then it creates a new todo object. It puts the todo with the given text into the fakeDatabase, and it returns the todo object, just like rest endpoints normally do.
-
-api/index.js
-
-export const addTodo = (text) =>
-  delay(500).then(() => {
-    id: v4(),
-    text,
-    completed: false,
-  };
-  fakeDatabase.todos.push(todo);
-  return todo;
-});
-The second fake API endpoint I added is called toggleTodo. It also simulates a network connection, and it finds the corresponding todo in the fakeDatabase and flips its completed field, also returning the todo as the response.
-
-api/index.js
-javascript
-
-
-export const toggleTodo = (id) =>
-delay(500).then(() => {
-const todo = fakeDatabase.todos.find(t => t.id === id);
-todo.completed = !todo.completed;
-return todo;
-});
-
-In this lesson, we will make the `addTodo` button call the `addTodo` fake API endpoint. I'm opening the file with action creators, I will no longer need the `v4` function because the ID generation now occurs on the server, and instead, I will call the API to add the todo.
-
-**actions/index.js**
-
-```javascript
-
-export const addTodo = (text) => ({
-  type: 'ADD_TODO',
-  id: v4(),
-  text,
-});
-I'm changing the addTodo action creator to be a func action creator, so I'm adding dispatch as a carried argument. The func will call the API addTodo endpoint with the given text, and wait for the response to come back.
-
-actions/index.js
-
-export const addTodo = (text) => (dispatch) => 
-  api.addTodo(text).then(response => {
-
-  })
-When the response is available, it will dispatch an action with the type ADD_TODO_SUCCESS, and the server response. The newly added todo will be part of the server response, so I need to change the byId reducer to merge it into the lookup table that it manages.
-
-actions/index.js
-
-export const addTodo = (text) => (dispatch) => 
-  api.addTodo(text).then(response => {
-    type: 'ADD_TODO_SUCCESS',
-    response,
-  });
-});
-I am adding a new case for the ADD_TODO_SUCCESS action. I'm using the object spread operator to create a new version of the lookup table, where under the action.response.id key, there is a new todo object that I read from action response.
+In the byId reducer, I currently have to handle different server actions in a different way, because they have different response shape. For example, the FETCH_TODOS_SUCCESS action has a response, which is an array of todos.
 
 byId.js
 
 const byId = (state = {}, action) => {
   switch (action.type) {
-    case 'FETCH_TODOS_SUCCESS': // eslint-disable-line no-case-declarations
-      const nextState = { ...state };
-      action.response.forEach(todo => {
-        nextState[todo.id] = todo;
-      });
-      return nextState;
-    case 'ADD_TODO_SUCCESS':
-      return {
-        ...state,
-        [action.response.id]: action.response,
-      };
+    case 'FETCH_TODOS_SUCCESS':
+    action.response.forEach(todo => {
+      nextState[todo.id] = todo;
+    });
+    return nextState;
+  }
+}
+I have to iterate over them and merge them one by one into the nextState. ADD_TODO_SUCCESS is different. The response for adding a todo is the todo itself. I have to merge a single todo in a different way.
+
+byId.js
+
+case 'ADD_TODO_SUCCESS':
+    return {
+      ...state,
+      [action.response.id]: action.response,
+    };
+Instead of adding new cases for every new API call, I want to normalize the responses so the response shape is always the same.
+
+I'm running npm install --save normalizr, which is a utility library that helps me normalize API responses to have the same shape.
+
+terminal
+
+$ npm install --save normalizr
+I'm creating a new file in the actions directory called schema.js. I'm importing a Schema constructor, and a function called arrayOf from Normalizr.
+
+schema.js
+
+import { Schema, arrayOf } from 'normalizr';
+I will export two schemas from this file. I create a schema for the todo objects, and specify todos as the name of the dictionary in the normalized response. I also create another schema called arrayOfTodos that corresponds to the responses that contain arrays of todo objects.
+
+schema.js
+
+export const todo = new Schema('todos');
+export const arrayOfTodos = arrayOf(todo);
+Next, I am opening the file where I define action creators, and I am adding a named import for a function called normalize that I import from Normalizr. I also add a namespace import for all the schemas I defined in the schema file.
+
+index.js
+
+import { normalize } from 'normalizr';
+import * as schema from './schema';
+I'm scrolling down to the FETCH_TODOS_SUCCESS callback, and adding a normalized response log so that I can see what the normalized response looks like. I'm calling the normalize function with the original response as the first argument, and the corresponding schema -- in this case, array of todos -- as the second argument.
+
+index.js
+
+return api.fetchTodos(filter).then(
+  response => {
+    console.log(
+      'normalized respone',
+      normaliz(response, schema.arrayOfTodos)
+    );
+    dispatch({
+      type: 'FETCH_TODOS_SUCCESS',
+      filter,
+      response,
+    });
+  },
+)
+Next, I'm scrolling down to the ADD_TODO_SUCCESS handler. When the response comes back, I want to log the normalized response by calling the normalize function with the original response as the first argument, and the corresponding schema -- in this case, a schema for a single todo -- as the second argument.
+
+index.js
+
+export const addTodo = (text) => (dispatch) =>
+  api.fetchTodos(text).then( response => {
+    console.log(
+      'normalized respone',
+      normaliz(response, schema.todo)
+    );
+    dispatch({
+      type: 'ADD_TODO_SUCCESS',
+      response,
+    });
+  },
+)
+If I run the app now and look at the response in the action, I will see an array of todo objects,
+
+[Original Response FETCHTODOSSUCCESS](../images/javascript-redux-normalizing-api-responses-with-normalizr-original-fetch-response.png)
+
+however, a normalized response for fetch todo success action looks differently. It contains two fields called entities and result. Entities contains a normalized dictionary called todos that contains every todo in the response by its id. Normalizr found these todo objects in the response by following the array of todos schema. Conveniently, they are indexed by ids, so they will be easy to merge into the lookup table.
+
+[Normalized Response FETCHTODOSSUCCESS](../images/javascript-redux-normalizing-api-responses-with-normalizr-normalized-fetch-response.png)
+
+The second field is the result. It's an array of todo ids. They are in the same order as the todos in the original response array. However, Normalizr replaced each todo with its id, and moved every todo into the todos dictionary.
+
+Normalizr can do this for any API response shape. For example, let's add a todo. The original action response object will be the todo itself, as returned by the server.
+
+[Original Response ADDTODOSUCCESS](../images/javascript-redux-normalizing-api-responses-with-normalizr-original-add-response.png)
+
+The normalized response will contain two fields, just like before, entities and result.
+
+[Normalized Response ADDTODOSUCCESS](../images/javascript-redux-normalizing-api-responses-with-normalizr-normalized-add-response.png)
+
+Like before, the entities object will contain the todos dictionary, this time with a single item. In the result field, we will see just the id of the todo, because the original response is just the single todo, and Normalizr replaced it with its id in the result field.
+
+I will now change the action creator so that they pass the normalized response in the response field, instead of the original response.
+
+index.js
+
+return api.fetchTodos(filter).then(
+  response => {
+    dispatch({
+      type: 'FETCH_TODOS_SUCCESS',
+      filter,
+      response: normalize(response, schema.arrayOfTodos),
+    });
+  },
+  error => { ... });
+
+export const addTodo = (text) => (dispatch) =>
+  api.fetchTodos(text).then( response => {
+    dispatch({
+      type: 'ADD_TODO_SUCCESS',
+      response: normalize(response, schema.todo),
+    });
+  },
+)
+As a reminder, we have to pass the schema as the second argument, and its schema todo for the single todo, and its schema array of todos for the array of todo objects in the response.
+
+Now, I can open the by ID reducer, and I can delete these special cases, because the response shape is going to be very similar. Rather than switch by action.type, I will check if the action has a response object on it.
+
+I will return a new version of the lookup table that contains all existing entries, as well as any entries inside entities.todos in the normalized response. For other actions, I will return the lookup table as it is.
+
+byid.js
+
+const byId = (state = {}, action) => {
+  if (action.response) {
+    return {
+      ...state,
+      ...action.response.entities.todos,
+    };
+  }
+  return state;
+}
+Now, I need to switch to the ids reducer to amend it to understand the new action response shape. For fetched todos, it used to be an array of todos. For ADD_TODO_SUCCESS, it used to be the todo itself.
+
+createList.js
+
+switch (action.type) {
+  case 'FETCH_TODOS_SUCCESS':
+    return filter === action.filter ?
+    action.response.map(todo => todo.id) :
+    state;
+  case 'ADD_TODO_SUCCESS':
+    return filter !== 'completed' ?
+      [...state, action.response.id] :
+      state;
     default:
       return state;
-  }
-};
-If I run the app now and add a todo, it will not appear in the list immediately. I can see the add ADD_TODO_SUCCESS in the log, and if I inspect the next state, I will see that the 
-byId lookup table now contains all four todos.
-
-[ADDTODOSUCCESS console output](../images/javascript-redux-creating-data-on-the-server-output.png)
-
-However, we have not updated the listByFilter, so all still only has three IDs in the list. If I go to another tab, the new todo appears because its ID is now included in the list of fetched IDs, and similarly, if I go back to the previous tab, it appears now because the data has been re-fetched.
-
-[Output](../images/javascript-redux-creating-data-on-the-server-output2.png)
-
-The list of IDs for each tab is managed by a reducer defined inside createList.js. I will change the ids reducer to handle the ADD_TODOS_SUCCESS action.
-
-When I receive a confirmation that the todo has been added on the server, I can return a new list of IDs with existing IDs in the beginning, and a newly added ID at the very end. Unlike the other actions, ADD_TODO_SUCCESS does not have a filter property on the action object, so our initial check would fail.
+}
+Now, the action response has a result field, which is already an array of ids, in case of FETCH_TODOS_SUCCESS, and our single id of the fetched todo in case of ADD_TODO_SUCCESS.
 
 createList.js
 
-const createList = (filter) => {
-  const ids = (state = [], action) => {
-    if (filter !== action.filter) {
+switch (action.type) {
+  case 'FETCH_TODOS_SUCCESS':
+    return filter === action.filter ?
+    action.response.result :
+    state;
+  case 'ADD_TODO_SUCCESS':
+    return filter !== 'completed' ?
+      [...state, action.response.result] :
+      state;
+    default:
       return state;
-    }
-    switch (action.type) {
-      case 'FETCH_TODOS_SUCCESS';
-        return action.response.map(todo => todo.id);
-      case 'ADD_TODO_SUCCESS':
-        return [...state, action.response.id];
-      default:
-        return state;
-    }
-  };
-};
-I am removing the top level check, and I will replace it with different checks in different cases. I want to replace the fetched IDs if the filter in the action matches the filter of this list. However, I want the newly added todo to appear in every list except the completed filter, because a newly added todo is not completed.
+}
+I can run the app now, and inspect the action response. I can see that, for FETCH_TODOS_SUCCESS, the response contains the entities which contains the todos by their ids, and the result is an array of ids in the same order as they were in the original response.
+
+[Normalized Fetch Object](../images/javascript-redux-normalizing-api-responses-with-normalizr-normalized-fetch-object.png)
+
+I can also add a todo, and the action response will also contain the entities and the result, where the entities contains the todos by their IDs, in this case, a single todo. The result is the id of the added todo.
+
+Let's recap how to work with normalized responses. FETCH_TODOS_SUCCESS original response contained an array of todos. Normalizr replaces them with an array of their ids in the result field. The ADD_TODO_SUCCESS original response was a single todo, so action response result becomes its id.
 
 createList.js
 
-const createList = (filter) => {
-  const ids = (state = [], action) => {
-    switch (action.type) {
-      case 'FETCH_TODOS_SUCCESS';
-        return filter === action.filter ?
-          action.response.map(todo => todo.id) :
-          state;
-      case 'ADD_TODO_SUCCESS':
-        return filter !== 'completed' ?
-          [...state, action.response.id] :
-          state;
-      default:
-        return state;
-    }
-  };
-};
-If I run the app now, I can see that if I add a new todo, it appears in the list as soon as add todo success action is dispatched, even though the last time todos were fetched, the new item wasn't there yet.
+switch (action.type) {
+  case 'FETCH_TODOS_SUCCESS':
+    return filter === action.filter ?
+    action.response.result :
+    state;
+  case 'ADD_TODO_SUCCESS':
+    return filter !== 'completed' ?
+      [...state, action.response.result] :
+      state;
+    default:
+      return state;
+}
+Inside the byId reducer, I removed all the special cases for different action types. I just check if the action contains a normalized response. The entities field will contain different dictionaries. In this example, I only have a single todos dictionary, which corresponds to the objects with a todo schema.
 
-[Output](../images/javascript-redux-creating-data-on-the-server-output3.png)
-
-It will also appear immediately in the active list, before the active todos are even fetched. It will not, however, appear in the completed list because we know that newly added todos are not completed.
-
-If I add a new todo while I'm looking at the completed list, it will not appear there even though the ADD_TODOS_SUCCESS action has been dispatched, because new todos are not completed. However, if I switch to active or all, I will see it immediately, even before the corresponding list has been fetched.
-
-Let's recap the changes necessary for adding todo asynchronously. We handle FETCH_TODOS_SUCCESS only if the action.filter matches the filter that the list was created with, and in this case, we replace the fetched list of todos. Otherwise, we just return the current state.
-
-createList.js
-
-const createList = (filter) => {
-  const ids = (state = [], action) => {
-    switch (action.type) {
-      case 'FETCH_TODOS_SUCCESS';
-        return filter === action.filter ?
-          action.response.map(todo => todo.id) :
-          state;
-However, to handle ADD_TODO_SUCCESS, we want to check if the filter is not completed, because if we add a todo, it will not be completed, and we want it to appear at the end of the all and the active filter lists.
-
-createList.js
-
-const createList = (filter) => {
-  const ids = (state = [], action) => {
-    switch (action.type) {
-      case 'FETCH_TODOS_SUCCESS';
-        ...
-      case 'ADD_TODO_SUCCESS':
-        return filter !== 'completed' ?
-          [...state, action.response.id] :
-          state;
-I also updated the byId reducer that manages the lookup table to handle the ADD_TODOS_SUCCESS action. We read the added todo from the action.response, and we return a new version of the lookup table that contains it under its ID.
-
-byId.js
+byid.js
 
 const byId = (state = {}, action) => {
-  switch (action.type) {
-    case 'FETCH_TODOS_SUCCESS': // eslint-disable-line no-case-declarations
-      ...
-    case 'ADD_TODO_SUCCESS':
-      return {
-        ...state,
-        [action.response.id]: action.response,
-Finally, the addTodo action creator is no longer synchronous, and instead, it returns a func that calls addTodo API endpoint and dispatches an action with the type ADD_TODO_SUCCESS and the response from the server.
+  if (action.response) {
+    return {
+      ...state,
+      ...action.response.entities.todos,
+    };
+  }
+  return state;
+}
+I use the object spread operator to merge the old lookup table and the newly-fetched todos. The name of the dictionary inside entities corresponds to the string argument that I passed to the schema constructor when I created the todo schema.
 
-actions/index.js
+schema.js
 
-export const addTodo = (text) => (dispatch) => 
-  api.addTodo(text).then(response => {
-    type: 'ADD_TODO_SUCCESS',
-    response,
-  });
-});
+export const todo = new Schema('todos');
+export const arrayOfTodos = arrayOf(todo);
+I have two kinds of API responses in my app, a single todo, and an array of todos. I use the arrayOf function from Normalizr to create a corresponding array schema.
+
+Finally, in the action creators, I call the normalize function to get the normalized response from the original response, and the schema that I know corresponds to this API endpoint.
+
+index.js
+
+return api.fetchTodos(filter).then(
+  response => {
+    dispatch({
+      type: 'FETCH_TODOS_SUCCESS',
+      filter,
+      response: normalize(response, schema.arrayOfTodos),
+    });
+  },
+  error => { ... });
+I know that the original response from FETCH_TODOS_SUCCESS is an array of todo objects. I pass the array of todos schema. The ADD_TODO_SUCCESS response shape is a single todo item. I pass the schema for a single todo to the normalize function that I import from Normalizr.
+
+index.js
+
+export const addTodo = (text) => (dispatch) =>
+  api.fetchTodos(text).then( response => {
+    dispatch({
+      type: 'ADD_TODO_SUCCESS',
+      response: normalize(response, schema.todo),
+    });
+  },
+)
