@@ -1,6 +1,19 @@
-In the next lessons, we won't be dealing with persistence anymore. Instead, we're going to add some asynchronous fetching to the app. This is why I'm removing all the code related to the localStorage persistence, and I'm going to delete the localStorage.js, as well.
+We're going to add some asynchronous fetching to the app. This is why I'm removing all the code related to the 
+localStorage, and I'm going to delete the localStorage.js, as well.
 
-I also added a new module that implements a fake remote API. It's not really remote. I keep all the todos in memory, but I also added an artificial delay. I have methods that return promises just like a real API implementation. But instead, it just pretends that it calls the server and returns the todos from the in memory database.
+Добавим асинхронную загрузку приложения. 
+Вот почему я удаляю весь код, связанный с localStorage, и я 
+также собираюсь удалить localStorage.js.
+
+
+I also added a new module that implements a fake remote API. It's not really remote.
+I keep all the todos in memory, but I also added an artificial delay. 
+I have methods that return promises just like a real API implementation. But instead, it just pretends that it calls the server and returns the todos from the in memory database.
+
+Я также добавил новый модуль, который реализует поддельный удаленный API. 
+Это не совсем так. Я храню все todos в памяти, но я также добавил искусственную задержку. 
+У меня есть методы, которые возвращают Promise так же, как реальная реализация API. 
+Но вместо этого он просто делает вид, что вызывает сервер и возвращает todos из базы данных в памяти.
 
 src/api/index.js
 
@@ -21,6 +34,10 @@ export const fetchTodos = (filter) =>
     }
   });
 This approach lets us explore how Redux works with asynchronous data fetching without writing a real backend for the app. Now I can open any other module of my app and I can import fetchTodos from the API module.
+
+Этот подход позволяет нам изучить, 
+как Redux работает с асинхронной выборкой данных без написания реального бэкэнда для приложения. 
+Теперь я могу открыть любой другой модуль моего приложения, и я могу импортировать fetchTodos из модуля API.
 
 src/index.js
 
