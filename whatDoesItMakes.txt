@@ -1,4 +1,9 @@
-The mapDispatchToProps function let's us inject certain props into the React component that can dispatch actions. For example, the TodoList component calls itsonTodoClick` callback prop with the ID of the Todo.
+The mapDispatchToProps function let's us inject certain props into the React component that can dispatch actions. 
+For example, the TodoList component calls itsonTodoClick` callback prop with the ID of the Todo.
+
+Функция mapDispatchToProps позволяет нам вводить определенные реквизиты в компонент React, 
+который может отправлять действия. 
+Например, компонент TodoList вызывает свой callback-вызов itsonTodoClick с идентификатором Todo.
 
 TodoList.js
 
