@@ -1,153 +1,4 @@
-I can extract the common code between the lifecycle hooks into a separate method. I will call it fetchData. It will fetch the data for the current props.
-
-VisibleTodoList.js
-
-fetchData() {
-  fetchTodos(this.props.filter).then(todos =>
-    console.log(this.props.filter, todos)
-  );
-}
-In this case, the data we want to fetch only depends on the filter. I'm calling this method from the componentDidMount hook, to fetch the initial data, and I also call it whenever the filter changes inside the componentDidUpdate, lifecycle hook.
-
-VisibleTodoList.js
-
-componentDidMount() {
-  this.fetchData();
-}
-
-componentDidUpdate(prevProps) {
-  if (this.props.filter !== prevProps.filter) {
-    this.fetchData();
-  }
-}
-We want the fetched todos to become a part of the Redux Store state. The only way to get something into the state is to dispatch an action. I'm going to call the callback prop called receiveTodos, whether to todos I just fetched.
-
-VisibleTodoList.js
-
-fetchData() {
-  fetchTodos(this.props.filter).then(todos =>
-    this.props.receiveTodos(todos);
-  );
-}
-To make it available inside the component, I need to pass a function called receiveTodos that would be an action creator inside the second argument to connect.
-
-VisibleTodoList.js
-
-VisibleTodoList = withRouter(connect(
-  mapStateToProps,
-  { onTodoClick: toggleTodo, reveiveTodos }
-  )(VisibleTodoList))
-Since the name of the function will match the name of the callback prop, I can use the shorter ES6 property notation.
-
-I will import receiveTodos from the file where I define all other action creators.
-
-VisibleTodoList.js
-
-import { toggleTodo, receiveTodos } from '../actions';
-Now, I can open that file with the action creators and actually implement it.
-
-I'm creating a new export const function called receiveTodos that takes the server response as an argument and returns an object with the type of receiveTodos and the response as a field.
-
-The reducer is handling this action. We'll need to know which filter the response corresponds to so I'm adding a filter as an argument to the receiveTodos action creator and I'm passing it as part of the action object.
-
-index.js
-
-export const receiveTodos = (filter, response) => ({
-  type: 'RECEIVE_TODOS',
-  filter,
-  response,
-});
-I'm going back to my component so I can pass the filter through the action creator. I'm destructering the filter and receiveTodos from props using ES6 destructering syntax. It's important that I destructer the filter right away, because by the time the callback fires this.props.filter might have changed because they use it and might have navigated away.
-
-VisibleTodoList.js
-
-fetchData() {
-  const { filter, receiveTodos } = this.props;
-  fetchTodos(this.props.filter).then(todos =>
-    receiveTodos(filter, todos)
-  );
-}
-If around the app now, I will see Redux actions being dispatched, ready to be handled by the reducers. They include all the necessary information, such as the filter and the server response.
-
-[Dispatched Action](../images/javascript-redux-dispatching-actions-with-the-fetched-data-dispatched-action.png)
-
-As I navigate through the app, the component fetches data in lifecycle hooks and dispatches Redux actions when the data is ready. As a final touch, I like to write less boilerplate code when importing action creators.
-
-I'm replacing name to imports with the namespace import so that any function exported from the actions file will be in the object called actions, which I will pass as a second argument to connect.
-
-VisibleTodoList.js
-
-import * as actions from '../reducers';
-
-VisibleTodoList = withRouter(connect(
-  mapStateToProps,
-  actions
-)(VisibleTodoList));
-I'm destructuring the props, because the toggleTodo action creator needs to be passed under onTodoClick callback prop name, but the rest of the props can be passed as the other.
-
-VisibleTodoList
-
-render() {
-  const { toggleTodo, ...rest } this.props;
-  return <TodoList {...this.props} />;
-}
-The rest object now continues all the props other than to toggleTodo, so I will pass them through. I will also pass toggleTodo as onTodoClick prop, because that's what TodoList component expect.
-
-VisibleTodoList
-
-render() {
-  const { toggleTodo, ...rest } this.props;
-  return <TodoList 
-          {...rest} 
-          onTodoClick={toggleTodo} 
-          />;
-}
-Finally, I'm splitting it over multiple lines for a little better readability. Let's recap how we fetch asynchronously in response to route changes. In the file where I define action creators, I add a new action creator called receiveTodos that accepts the filter and the response as arguments.
-
-index.js
-
-export const receiveTodos = (filter, response) => ({
-  type: 'RECEIVE_TODOS',
-  filter,
-  response,
-});
-It produces a regular Redux action object that can be dispatched after the request of the server has completed. I created a new react class component so that I can use lifecycles hooks, such as componentDidMount and componentDidUpdate to fetch the data.
-
-VisibleTodoList.js
-
-componentDidMount() {
-  this.fetchData();
-}
-
-componentDidUpdate(prevProps) {
-  if (this.props.filter !== prevProps.filter) {
-    this.fetchData();
-  }
-}
-I'm fetching the data when the component mounts for the first time and if the filter prop, provided by react router changes, which means that user has navigated in the app. The VisibleTodoList is the container component that enhances a presentational component called TodoList when the data fetch an object.
-
-However, the class we wrote does not subscribe to the store itself so we wrap it in a connect() call so that the containers generated by react Redux connect subscribes to the store and passes the props through the VisibleTodoList component we wrote.
-
-VisibleTodoList.js
-
-VisibleTodoList = withRouter(connect(
-  mapStateToProps,
-  actions
-)(VisibleTodoList));
-Finally, the component generated by withRouter subscribes to the router changes so we have access to the router params in mapStateToProps. The components we want to export are the result of colon disrupters so I reassign VisibleTodoList and export it.
-
-VisibleTodoList.js
-
-const mapStateToProps = (state, { parama }) => {
-  const filter = params.filter || 'all';
-  return {
-    todos: getVisibleTodos(state, filter),
-    filter,
-  };
-};
-Inside the mapStateToProps, I read the filter value from the parameters supply direct order or use the default value. I used to only use filter for calculating the getVisibleTodos, but now, I also want to pass it as a prop so that it's available inside the component.
-
-Having access to the filter prop, let's determine whether I should fetch the data and pass it to the function that fetches todos. I import this function from the file where I define our fake API, which can be replaced by rest API client.
+The receiveTodos action creator is not very useful by itself because anytime we call it, we want to fetch the todos first. Also, they accept the same argument so it would be great if we could group this code into a single action creator.
 
 VisibleTodoList.js
 
@@ -157,9 +8,140 @@ fetchData() {
     receiveTodos(filter, todos)
   );
 }
-We fetch data when the component mounts and when the filter prop changes. fetchTodos return the promise so when it resolves, I use the response, to dispatch an action receiveTodos with the filter and the server response.
+I'm opening the file where I define the action creators and I'm adding a new import there. It will make all functions in the API module available on the API namespace import object.
 
-The receiveTodos function available on the props dispatches the action returned by receiveTodos action creator automatically. This happens because I pass at this part of the actions object to connect.
+index.js
+
+import * as api from '../api';
+I'm adding a special kind of action creator that I'm going to call an asynchronous action creator. It takes filter as an argument and it calls the API fetchTodos method with it. I'm using the promise .then method to transform the result of the promise from the response to the action object generated by receiveTodos given the filter and the response.
+
+index.js
+
+export const fetchTodos = (filter) =>
+  api.fetchTodos(filter).then(response =>
+    receiveTodos(filter, response)
+  );
+ReceiveTodos return an action object synchronously but fetchTodos returns a promise that resolves through the action object. I can stop exporting receiveTodos because I'll change the components to use fetchTodos directly.
+
+I'm going back to my component file and I can use the fetchTodos prop injected by connect() which corresponds to the new asynchronous fetchTodos action creator.
+
+VisibleTodoList.js
+
+fetchData() {
+  const { filter, fetchTodos } = this.props;
+  fetchTodos(filter);
+}
+I'm removing the direct import of fetchTodos function from API because from now on I'll be using the fetchTodos action creator, which is injected into the props by connect().
+
+Let's take another look at what happens in the action creators. The fetchTodos action creator calls the fetchTodos function from the API but then it transforms its result into a Redux action generated by receiveTodos.
+
+However, by default, Redux only allows dispatch in plain objects rather than promises. We can teach it to recognize promises by using the same trick that we use for addLoggingToDispatch.
+
+addLoggingToDispatch is the function we wrote before that creates the dispatch from the store and returns a new version of dispatch that logs every action and the state. In a similar fashion, I can create a function called addPromiseSupportToDispatch that takes the store and returns a version of dispatch that supports promises.
+
+configureStore.js
+
+const addPromiseSupportToDispatch = (store) => {
+
+}
+First, we will write the rawDispatch function at it is defined on the store so that we can call it later. We return a function that has the same API as a dispatch function that is, it takes an action.
+
+configureStore.js
+
+const addPromiseSupportToDispatch = (store) => {
+  const rawDispatch = store.dispatch;
+  return (action) => {
+
+  };
+}
+We don't know if the action is a real action or a promise of action, which check if it has a .then method that is a function, which is a way to tell if something is a promise. If it is a promise, we wait for it to resolve to an action object that we pass through rawDispatch. Otherwise, we'll just call rawDispatch right away with the action object we received.
+
+configureStore.js
+
+const addPromiseSupportToDispatch = (store) => {
+  const rawDispatch = store.dispatch;
+  return (action) => {
+    if (typeof action.then === 'function') {
+      return action.then(rawDispatch);
+    }
+  };
+}
+Now, we can dispatch both actions and promises that resolve to actions. Finally, I need to use the function I just wrote to write the dispatch function one more time before returning the store to the app.
+
+configureStore.js
+
+if (process.env.NODE_ENV !== 'production') {
+  store.dispatch = addLoggingToDispatch(store);
+}
+
+store.dipatch = addLoggingToDispatch(store);
+If I run the app now, I will still see the receiveTodos action being dispatch when the response is ready. However, the component uses a more convenient API that encapsulates the asynchronous logic in the asynchronous action creator.
+
+[Async Action Creator](../images/javascript-redux-wrapping-dispatch-to-recognize-promises-async-action-creator.png)
+
+One thing to remember is that the order in which we override the dispatch function is important. If we change it, the action will first be printed and then the promise will be processed so action type is undefined and we see the promise instead of the action, which is not very useful.
+
+configureStore.js
+
+store.dipatch = addLoggingToDispatch(store);
+
+if (process.env.NODE_ENV !== 'production') {
+  store.dispatch = addLoggingToDispatch(store);
+}
+[Async Action Creator](../images/javascript-redux-wrapping-dispatch-to-recognize-promises-action-type-undefined.png)
+
+This is why I'm changing the auto back so that the promises are resolved before the action is locked. Let's recap how we added the promise support to the dispatch function.
+
+We override store dispatch two times. Once to add the login and second time to add the promise support. The function that adds the promise support accepts the store an argument and it reaches the previous value of the dispatch function.
+
+configureStore.JS
+
+const addPromiseSupportToDispatch = (store) => {
+  const rawDispatch = store.dispatch;
+  return (action) => {
+    if (typeof action.then === 'function') {
+      return action.then(rawDispatch);
+    }
+    return rawDispatch(action);
+  };
+};
+It returns a function that looks like a dispatch function because it accepts the action but if the action is not really an action but a promise, we're going to wait for that promise to resolve to the real action, which will pass through rawDispatch.
+
+Finally, if the action is not a promise, we'll just dispatch it right away by calling rawDispatch. Let's see what happens when we try to dispatch the result of call and fetchTodos asynchronous action creator.
+
+index.js
+
+const receiveTodos = (filter, response) => ({
+  type: 'RECEIVE_TODOS',
+  filter,
+  response,
+});
+
+export const fetchTodos = (filter) =>
+  api.fetchTodos(filter).then(response =>
+    receiveTodos(filter, response)
+  );
+First of all, it calls the fetchTodos function from the API module, which I import as a namespace import. It waits for the promise to resolve with the response and rather than return the response, it returns the result of calling receiveTodos action creator, which returns an action object.
+
+This is why fetchTodos, itself, returns a promise that resolves through the action returned by receiveTodos. The wrapped dispatch function recognizes that this is a promise and not an action so it waits for the promise to resolve and passes it on through the rawDispatch function with dispatches the action object returned by receiveTodos.
+
+configureStore.js
+
+const addPromiseSupportToDispatch = (store) => {
+  const rawDispatch = store.dispatch;
+  return (action) => {
+    if (typeof action.then === 'function') {
+      return action.then(rawDispatch);
+    }
+    return rawDispatch(action);
+  };
+};
+I remove the export from receiveTodos because it is only used as part of the asynchronous fetchTodos action creator. Being a named export, it becomes available as part of the actions object, which is the namespace import invisible TodoList.
+
+VisibleTodoList.js
+
+import * as actions from '../actions';
+The actions object gets passed as a second argument through the connect function. This has me call these props fetchTodos from my component without thinking whether it is backed by a synchronous or an asynchronous action creator.
 
 VisibleTodoList.js
 
@@ -167,17 +149,3 @@ VisibleTodoList = withRouter(connect(
   mapStateToProps,
   actions
 )(VisibleTodoList));
-The actions object contains all the exported action creators defined in the actions.js file, because I use the ES6 namespace import syntax. The receiveTodos action creator does not automatically dispatch an action, but the receiveTodos prop injected by connect does.
-
-When I call it, it will call my action creator with the same arguments and dispatch the resultant action to the Redux Store. Inside the render() method, I render to the presentational TodoList component.
-
-VisibleTodoList.js
-
-render() {
-  const { toggleTodo, ...rest } this.props;
-  return <TodoList 
-          {...rest} 
-          onTodoClick={toggleTodo} 
-          />;
-}
-Now that all action creators are injected as props with the same names, I have to grab toggleTodo specifically and pass it as onTodoClick called by prop that TodoList expects, but the rest props can be passed with their existing names.
