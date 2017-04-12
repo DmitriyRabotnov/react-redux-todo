@@ -1,103 +1,115 @@
-VisibleTodoList.js
+I'm increasing the delay in my fake API client to five seconds. This lets me notice a problem.
 
-fetchData() {
-  const { filter, fetchTodos, requestTodos } = this.props;
-  requestTodos(filter);
-  fetchTodos(filter);
-}
-To show the loading indicator, I dispatch the requestTodos action before I fetchTodos. It would be great if I could make requestTodos dispatched automatically when I fetch the todos because I never want to fire them separately.
-
-VisibleTodoList.js
-
-fetchData() {
-  const { filter, fetchTodos } = this.props;
-  fetchTodos(filter);
-}
-I'm removing the explicit requestTodos dispatch from the component, and in the file where I define the action creators, I'm no longer exporting requestTodos action creator.
-
-index.js
-
-const requestTodos = (filter) => ({
-  type: 'REQUEST_TODOS',
-  filter,
-});
-
-export const receiveTodos = (filter) => ({
-  type: 'RECEIVE_TODOS',
-  filter,
-  response,
-});
-I want to dispatch requestTodos when they start fetching, and receiveTodos when they finish fetching, but the fetchTodos action creator only resolves through the receiveTodos action.
-
-index.js
+index.js -- api
 
 export const fetchTodos = (filter) =>
-  api.fetchTodos(filter).then(response =>
-  receiveTodos(filter, response)
-  );
-An action promise resolves through a single action at the end, but we want an abstraction that represents multiple actions dispatched over the period of time. This is why rather than return a promise, I want to return a function that accepts a dispatch callback argument.
+  delay(5000).then(() => { ... })
+We don't check if the tab is already loading before starting a request, and then a bunch of RECEIVE_TODOS action comes back, potentially resulting in a race condition.
 
-This lets me call dispatch as many times as I like at any point of time during the async operation. I can dispatch the requestTodos action in the beginning, and when the promise resolves, I can explicitly dispatch another receiveTodos action at the end.
+[Potential Race Condition](../images/javascript-redux-avoiding-race-conditions-with-thunks-potential-race-condition.png)
+
+To fix this, I can exit early from the fetchTodos action creator if I know that I'm already fetching the todos for the given filter. I will use the existing top level getIsFetching selector, that accepts the store, state, and the filter as arguments. If it returns true, I will exit early from my thunk without dispatching any actions.
 
 index.js
 
 export const fetchTodos = (filter) => (dispatch) => {
+  if (getIsFetching(getState(), filter)) {
+    return;
+  }
+
   dispatch(requestTodos(filter));
 
   return api.fetchTodos(filter).then(response => {
     dispatch(receiveTodos(filter, response));
-  });
-}
-This means more typing than returning a promise, but it also gives me more flexibility. A promise can only express one async value, so fetchTodos now returns a function with a callback argument so that it can call it multiple times during the async operation.
+  }); 
+};
+The getIsFetching selector is defined inside the top level reducer file. I will import it as a named import from ../reducers.
 
-Such functions returned from other functions are often called thunks, so we're going to implement a thunk middleware to support them. I'm opening the configureStore file where I define the middleware, and I will remove the promise middleware, and I will replace it with a different middleware that I'm going to write now.
+index.js
 
-The new middleware I'm writing is called the thunk middleware because it supports the dispatching of thunks, and it takes the store, the next middleware, and the action as curried arguments, just like any other middleware.
+import { getIsFetching } from '../reducers';
+Another function I'm using that isn't defined in this file is getState, and it belongs to the store object, but I don't have access to it directly from the action creator.
 
-If the action is not an action, but rather a function, we're going to assume that this is a thunk that wants the dispatch function to be injected into it, so I'm calling the action with store.dispatch. Otherwise, I'm just going to return the result of passing the action to the next middleware in chain.
+However, I can make it so that the thunk middleware injects not just store dispatch function inside the thunk actions, but also store.getState function. This way, I can grab it as a second argument after dispatch inside my thunk action creator, so I'm adding getState as a second argument.
 
 configureStore.js
 
 const thunk = (store) => (next) => (action) =>
   typeof action === 'function' ?
-    action(store.dispatch) :
-    next(action);
+  action(store.dispatch, store.getState) :
+  next(action)
+The fetchTodos action creator now dispatches actions conditionally, and if I run the app, I can't get it to produce more than three concurrent requests.
 
-const configureStore = () => {
-  const middlewares = [thunk];
+index.js
 
+export const fetchTodos = (filter) => (dispatch, getState) => {
+  if (getIsFetching(getState(), filter)) {
+    return;
+  }
+[Only Three Actions](../images/javascript-redux-avoiding-race-conditions-with-thunks-only-three-actions.png)
+
+Only after the corresponding receiveTodos actions come back, the isFetching flag gets reset, and we can request the new todos. This is a good way to avoid unnecessary network operations and potential race conditions.
+
+This is a very common pattern, so you don't have to write the thunk middleware yourself. Instead, you can open up a terminal and run npm install --save redux-thunk.
+
+terminal
+
+npm install --save redux-thunk
+It installs the thunk middleware that is very similar to the one I wrote here, so I can remove my version of thunk middleware, and instead, I can import thunk from redux-thunk.
+
+configureStore.js
+
+import thunk from 'redux-thunk'
+Finally, let's take a look at the return value of the thunk. It returns a promise. It doesn't have to, but it's convenient for the calling code, so I will change the early return to also return a promise that resolves immediately.
+
+index.js
+
+export const fetchTodos = (filter) => (dispatch, getState) => {
+  if (getIsFetching(getState(), filter)) {
+    return Promise.resolve();
+  }
+The thunk middleware itself does not use this promise, but it becomes the return value of dispatching this action creator, so I can use it inside the component to schedule some code after the asynchronous action has completed.
+
+VisibleTodoList.js
+
+fetchData() {
+  const { filter, fetchTodos } = this.props;
+  fetchTodos(filter).then(() => console.log('done!'));
 }
-As a final step, I need to add the thunk middleware I just wrote to my array of middlewares so that it gets applied to the store. Let's recap how thunk middleware lets us dispatch multiple actions asynchronously.
-
-The thunk middleware has the same signature as all Redux middlewares. It accepts the store, the next dispatch function, and the action as curried arguments. It returns a new dispatch function that checks if the action is actually a function itself.
-
-We can see that this is the case with fetchTodos action creator. Its return value is a function that wants dispatch as its argument so that it can dispatch multiple times.
+Let's recap how we use redux-thunk to dispatch actions asynchronously and conditionally. In the component, we dispatch the fetchTodos action, which is implemented as an asynchronous action creator that returns a thunk that is a function that will get interpreted by the redux-thunk middleware.
 
 index.js
 
 export const fetchTodos = (filter) => (dispatch) => {
+  if (getIsFetching(getState(), filter)) {
+    return Promise.resolve();
+  }
+
   dispatch(requestTodos(filter));
 
   return api.fetchTodos(filter).then(response => {
     dispatch(receiveTodos(filter, response));
-  });
-}
-This is why when we see an action that is really a function, a thunk, we call it with store.dispatch as an argument so that it can dispatch other actions by itself. The store.dispatch function becomes available as the dispatch argument inside the thunk.
+  }); 
+};
+I import thunk from the redux-thunk package I installed from npm, and I added thunk to the list of redux middlewares I use to create my store. The thunk middleware sees that I dispatched a function rather than an action, so it calls it with dispatchas an argument so that it can dispatch multiple times.
 
-Now, the thunk can use the dispatch argument to dispatch the requestTodos action in the very beginning, and receiveTodos action at the very end. The dispatch function injected into thunks is already wrapped with the whole middleware chain, so thunks can dispatch both plain object actions and other thunks.
+It also passes a second argument called getState that lets me get the current state of the redux store. I pass the state to the getIsFetching selector that I import as a top level named import from the reducers file.
 
-No matter what gets dispatched, it will go through the middleware chain again, and if its type is a function, it will be called like a thunk, but otherwise, it will be passed on to the next middleware in chain.
+I am passing the current state of the store and the filter to get isFetching, and if I am already fetching the todos for this filter, then I will exit early from the thunk so that I don't call the API or dispatch any actions.
 
-In this case, it's the logger. Only plain object actions reach the logger, and then reach the reducers.
+index.js
 
-configureStore.js
-
-cosnt configureStore = () => {
-  const middlewares = [thunk];
-  if (process.env.NODE_ENV !== 'production') {
-    middlewares.push(creatLogger());
+export const fetchTodos = (filter) => (dispatch, getState) =>
+  if(getIsFetching(getState(), filter)) {
+    return Promise.resolve();
   }
-}
-The thunk middleware is a powerful, composable way to express async action creators that want to emit several actions during the course of an async operation.
+Finally, the thunk middleware has no opinion on what you return from the thunk itself. As a convention, I prefer to always return a promise that represents the corresponding asynchronous operation, whether or not it has called the server.
 
-This lets the components specify the intention to start an async operation without worrying which actions get dispatched and when.
+The return value of the thunk becomes the return value of dispatching this thunk, and I can use this to wait for the asynchronous operation to finish inside my component in order to show a message or start an animation.
+
+VisibleTodoList.js
+
+fetchData() {
+  const {filter, fetchTodos } = this.props;
+  fetchTodos(filter).then(() => console.log('done!'));
+}

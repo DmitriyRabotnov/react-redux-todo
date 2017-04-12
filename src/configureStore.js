@@ -1,11 +1,7 @@
 import { createStore, applyMiddleware } from 'redux';
 import createLogger from 'redux-logger';
+import thunk from 'redux-thunk';
 import todoApp from './reducers';
-
-const thunk = (store) => (next) => (action) => // eslint-disable-line no-confusing-arrow
-  typeof action === 'function' ?
-    action(store.dispatch) :
-    next(action);
 
 const configureStore = () => {
   const middlewares = [thunk];
