@@ -111,11 +111,7 @@ const configureStore = () => {
   store.subscribe(throttle(() => {...}
 Let's have a look at how our app runs with the wrapped dispatch function. Now, every time I dispatch an action such as ADD_TODO, I can see it in the log. In the previous state, I can see that there are no IDs, and the byId look-up table is empty.
 
-[console output](../images/javascript-redux-wrapping-dispatch-to-log-actions-output-1.png)
-
 Then I see the action with the type ADD_TODO, and the ID and text of the todo. Finally, in the state after dispatching the action, I can see both the ID in all IDs and the corresponding todo in the byId mapping.
-
-[console output](../images/javascript-redux-wrapping-dispatch-to-log-actions-output-2.png)
 
 The only way to change the Redux store state is by dispatching an action, and now we log every action along with the state before and after it, so it's really easy to find, if there is a mistake in the state, which action caused it.
 
