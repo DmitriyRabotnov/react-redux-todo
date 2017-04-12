@@ -1,9 +1,9 @@
 My mapStateToProps function uses the getVisibleTodos function, and it passes the slice of the state corresponding to 
-the todos. However, if I ever change the state structure, I'll have to remember to update this whole side.
+the todos. However, if I ever change the state structure, I'll have to remember to update this whole state.
 
 
 Моя функция mapStateToProps использует функцию getVisibleTodos и передает срез состояния, соответствующего todos. 
-Однако, если я когда-либо меняю State, я должен буду помнить об обновлении всей этой стороны.
+Однако, если я когда-либо поменяю структуру State, я должен буду помнить об обновлении состояния целиком.
 
 
 VisibleTodoList
