@@ -1,195 +1,204 @@
-Earlier, we removed the visibilityFilter reducer, and so the root reducer in the app now combines only a single todos reducer. Since index.js acts effectively as a proxy to the todos reducer, I will just remove index.js completely, and I will rename todos.js to index.js, thereby making the todos my new root reducer.
+When the data is fetched asynchronously, we want to display some kind of visual cue to the user. I'm adding a condition to the render function that says that if we're fetching data, and we have no todos to show, we're going to return something like a loading indicator from the render function.
 
-The root reducer file now contains byId, allIds, activeIds, and completedIds, and I'm going to extract some of them into separate files. I'm starting with byId reducer, and I'm creating the file called byId.js, where I paste this reducer and export it as a default export.
+VisibleTodoList.js
 
-byId.js
-
-const byId = (state = {}, action) => {
-  switch (action.type) {
-    case 'RECEIVE_TODOS':
-    const nextState = { ...state };
-    action.response.forEach(todo => {
-      nextState[todo.id] = todo;
-    });
-    return nextState;
-  default:
-    return state;
+render() {
+  const { toggleTodo, ...rest } = this.props;
+  if (isFetching && !todos.length) {
+    return <p>Loading...</p>;
   }
 }
+I will grab todos and isFetching from the props. In fact, todos is the only extra prop we need to pass to the list. Instead of using the spread operator, I'll just pass the todos directly. My mapStateToProps function already calculates the visibleTodos, and it includes the todos in the props.
 
-export default byId;
-I'm also adding a named export for a selector called getTodo, that takes the state and id, where the state corresponds to the state of byId reducer.
+VisibleTodoList.js
 
-byId.js
+return (
+  <TodoList
+    todos={todos},
+    onTodoClick={toggleTodo}
+  />
+);
 
-export const getTodo = (state, id) => state[id];
-Now I'm going back to my index.js file, and I can import the reducer as a default import, and I can import any associated selectors in a single object with a namespace import.
-
-index.js
-
-import byId, * as fromById from './byId';
-If we take a look at the reducers managing the IDs, we will notice that their code is almost exactly the same except for the filter value which they compare action filter to. I will create a new function called createList that takes filter as an argument.
-
-It returns another function, a reducer that handles the IDs for the specified filter, so its state shape is an array, and I can copy-paste the implementation from allIds. I just need to change the all literal here to the filter argument to the createList function, so that we can create it for any filter.
-
-index.js
-
-const createList = (filter) => {
-  return (state = [], action) => {
-    if (action.filter !== filter) {
-      return state;
-    }
-    switch (action.type) {
-      case 'RECEIVE_TODOS':
-        return action.response.map(todo => todo.id);
-      default:
-        return state;
-    }
+const mapStateToProps = (state, { params }) => {
+  const filter = params.filter || 'all';
+  return {
+    todos: getVisibleTodos(state, filter),
+    filter,
   };
 };
-Now I can remove the allIds, activeIds, and completedIds reducer code completely. Instead, I will generate the reducers using the new createList function I wrote, and passing the filter as an argument to it.
+I need to do something similar for isFetching. GetIsFetching accepts the current state of the app, and the filter for which we want to check if the todos are being fetched. It is declared alongside other top level selectors in the top level reducer file.
+
+VisibleTodoList.js
+
+import { getVisibleTodos, getIsFetching } from '../reducers';
+
+const mapStateToProps = (state, { params }) => {
+  const filter = params.filter || 'all';
+  return {
+    todos: getVisibleTodos(state, filter),
+    isFetching: getIsFetching(state, filter),
+    filter,
+  };
+};
+I am now switching to the root reducer file to add another exported named function, which is the new selector called getIsFetching. It accepts the state of the app and the filter as arguments. It delegates to another selector to find and create list that gets whether this list is currently being fetched. I am passing the state of this list, which I get from state.listByFilter.
 
 index.js
 
-const idsByFilter = combineReducers({
-  all: createList('all'),
-  active: createList('active'),
-  completed: createList('completed'),
-})
-Next, I will extract the createList function into a separate file, just like I extracted the byId reducer. I added a new file called createList.js. I pasted my createList function there, and I will export it as a default export. Now that it's in a separate file, I'm adding a public API for accessing the state in form of a selector. That is called getIds, and for now, it just returns the state of the list, but this may change in the future.
+export const getIsFetching = (state, filter) =>
+  fromList.getIsFetching(state.listByFilter[filter]);
+I am using a selector that I have not created yet. I will go to createList.js and add it. First, I need to modify the state shape of the list. Rather than assume the state is the array of IDs, I will assume it is an object that contains this array as a property.
+
+createList.js
+
+export const getIds = (state) => state.ids;
+export const getIsFetching = (state) => state.isFetching;
+Now I can add another selector called getIsFetching that reads another property from the state object, which is a built-in flag called isFetching. I want my reducer to keep track of both of these fields. Rather than complicate the existing reducer, I will rename it to ids, because it manages just the ids.
 
 createList.js
 
 const createList = (filter) => {
-  return (state = [], action) => {
-    if (action.filter !== filter) {
-      return state;
-    }
-    switch (action.type) {
-      case 'RECEIVE_TODOS':
-        return action.response.map(todo => todo.id);
-      default:
-        return state;
-    }
-  };
-};
-
-export default createList;
-
-export const getIds = (state) => state;
-Now I will go back to my index.js file, and I will import createList just like I usually import reducers, and I will import any named selectors from this file, as well.
-
-index.js
-
-import creatList, * as fromList from './createList';
-I'm renaming the Ids by filter reducer to listByFilter, because now that the list implementation is in a separate file, I'll consider its state structure to be opaque, and to get the list of IDs, I will use the get IDs selector that it exports.
-
-index.js
-
-const idsByFilter = combineReducers({
-  all: createList('all'),
-  active: createList('active'),
-  completed: createList('completed'),
-})
-
-const todos = combineReducers({
-  byID,
-  listByFilter,
-});
-
-export const getVisibleTodos = (state, filter) => {
-  const ids = fromList.getIds(state.listByFilter[filter]);
-  return ids.map(id => fromById.getTodo(state.byId[id]);
-};
-Since I also moved the byId reducer into a separate file, I also don't want to make an assumption that it's just a lookup table, and I will use fromById.getTodo selector that it exports and pass its state and the corresponding id.
-
-This lets me change the state shape of any reducer in the future without rippling changes across the code base. Let's recap how we refactored the reducers.
-
-First of all, the todos reducer is now the root reducer of the application, and its file has been renamed to index.js.
-
-index.js
-
-const todos = combineReducers({
-  byID,
-  listByFilter,
-});
-We extracted the byId reducer into a separate file. The byId reducer is now declared here, and it is exported from this module as a default export.
-
-byid.js
-
-const byId = (state = {}, action) => {
-  switch (action.type) {
-    case 'RECEIVE_TODOS':
-    const nextState = { ...state };
-    action.response.forEach(todo => {
-      nextState[todo.id] = todo;
-    });
-    return nextState;
-  default:
-    return state;
-  }
+  const ids = (state = [], action) => { ... }
 }
-
-export default byId;
-To encapsulate the knowledge about the state shape in this file, we export a new selector that just gets the todo by its ID from the lookup table.
-
-byid.js
-
-export const getTodo = (state, id) => state[id];
-We also created a new function called createList that we use to generate the reducers, managing the lists of fetched todos for any given filter.
-
-byid.js
-
-const idsByFilter = combineReducers({
-  all: createList('all'),
-  active: createList('active'),
-  completed: createList('completed'),
-})
-Inside createlist.js, we have a createList function that takes filter as an argument, and it returns a reducer that manages the fetched IDs for this filter.
-
-The generated reducers will handle the RECEIVE_TODOS action, but they will keep any action that has the filter different from the one they were created with.
+I will create a separate reducer called isFetching that manages just the state of the fetching flag. Its initial state is false, and it looks just like any other reducer. I am now scrolling up to add an import for the combineReducers utility from redux.
 
 createList.js
-
-const createList = (filter) => {
-  return (state = [], action) => {
-    if (action.filter !== filter) {
-      return state;
-    }
-    switch (action.type) {
-      case 'RECEIVE_TODOS':
-        return action.response.map(todo => todo.id);
-      default:
-        return state;
-    }
-  };
-};
-CreateList is the default export from this file, but we also export a selector that gets the ids from the current state. Right now, the ids are the current state, but we are free to change this in the future.
-
-In index.js, we use the namespace import syntax to grab all selectors from the corresponding file into an object.
-
-index.js
 
 import { combineReducers } from 'redux';
-import byId, * as fromById from './byId';
-import creatList, * as fromList from './createList';
-The listByFilter reducer combines the reducers generated by createList, and it uses the filters as the keys.
 
-index.js
+const createList = (filter) => {
+  const ids = (state = [], action) => { ... }
 
-const listByFilter = combineReducers({
-  all: createList('all'),
-  active: createList('active'),
-  completed: createList('completed'),
+  const isFetching = (state = false, action) => {
+
+  }
+}
+Now I can return a combinedReducer from createList that manages both ids and isFetching. The isFetching reducer implementation is very simple. We switch on the action type, and if it is REQUEST_TODOS, we'll return true because we started fetching.
+
+createList.js
+
+const isFetching = (state = false, action) => {
+  switch (action.type) {
+    case 'REQUEST_TODOS':
+      return true;
+    case 'RECEIVE_TODOS':
+      return false;
+    default: 
+      return state;
+  }
+}
+
+return combinedReducer({
+  ids,
+  isFetching,
 })
-Because listByFilter is defined in this file, the getVisibleTodo selector can make assumptions about its state shape and access it directly. However, the implementation of createList is in a separate file, so this is why it uses the fromList.getIds selector to get the IDs from it.
+If it's RECEIVE_TODOS, we'll return false because the operation has finished. For any unknown action, we'll return the current state. Now I'm scrolling back up to the ids reducer, and I will copy the condition that tells it to ignore any actions with a filter that does not match the filter argument to createList.
+
+createList.js
+
+const isFetching = (state = false, action) => {
+  if (action.filter !== filter) {
+    return state;
+  }
+  switch (action.type) {
+    case 'REQUEST_TODOS':
+      return true;
+    case 'RECEIVE_TODOS':
+      return false;
+    default: 
+      return state;
+  }
+}
+Finally, I'm handling the REQUEST_TODOS action, but I'm not dispatching it anywhere. In the file where I define the action creators, I am adding a new exported function called requestTodos that takes the filter and returns an action object describing the REQUEST_TODOS action with the corresponding filter.
 
 index.js
 
-export const getVisibleTodos = (state, filter) => {
-  const ids = fromList.getIds(state.listByFilter[filter]);
-  return ids.map(id => fromById.getTodo(state.byId[id]);
-};
-Now that we have the IDs, we want to map them to the todos inside the state.byId. But now that it's in a separate file, rather than reach into it directly, we use the selector that it exports to access the individual todo.
+export const requestTodos = (filter) => ({
+  type: 'REQUEST_TODOS',
+  filter,
+});
+Every exported action creator from this file will be available on the props of the visibleTodoList component. I can just structure requestTodos from the props, and I can call it right before starting the asynchronous operation with fetchTodos.
 
-Redux does not enforce that you encapsulate the knowledge about the state shape in particular reducer files. However, it's a nice pattern, because it lets you change the state that is stored by reducers without having to change your components or your tests if you use selectors together with reducers in your tests.
+VisibleTodoList.js
+
+fetchData() {
+  const { filter, requestTodos, fetchTodos } = this.props;
+  requestTodos(filter);
+  fetchTodos(filter)
+}
+If I run the app now, I will see not one, but two actions, REQUEST_TODOS, and RECEIVE_TODOS. If I look at the state after the REQUEST_TODOS action, I will see that inside the all list state, is fetching flag is set to true.
+
+[isFetching set to true](../images/javascript-redux-displaying-loading-indicators-isFetching-true.png)
+
+When the corresponding RECEIVE_TODOS action fires, the flag gets reset back to  false, and the ids are not an empty array anymore.
+
+[isFetching set to false](../images/javascript-redux-displaying-loading-indicators-isFetching-false.png)
+
+As I navigate the tabs for the first time, I see the loading indicator show up.
+
+[Loading indicator displayed](../images/javascript-redux-displaying-loading-indicators-loading.png)
+
+However, if I visit them again, I already have cached data. I prefer to show that to a loading indicator.
+
+[Cached Data Displayed](../images/javascript-redux-displaying-loading-indicators-cached-data.png)
+
+Let's recap. In the component, I dispatch an action called requestTodos before fetching them. The REQUEST_TODOS action creator returns an action object with a type of REQUEST_TODOS, and the filter that I passed.
+
+index.js
+
+export const requestTodos = (filter) => ({
+  type: 'REQUEST_TODOS',
+  filter,
+});
+I handle the REQUEST_TODOS action inside isFetching reducer, where it returns true if we began fetching. As soon as we receive the todos, it returns false, so that the loading indicator can reset. The isFetching reducer is combined with the ids reducer into a single reducer that is returned from createList.
+
+createList.js
+
+const isFetching = (state = false, action) => {
+  if (action.filter !== filter) {
+    return state;
+  }
+  switch (action.type) {
+    case 'REQUEST_TODOS':
+      return true;
+    case 'RECEIVE_TODOS':
+      return false;
+    default:
+      return state;
+  }
+
+  return combineReducers({
+    ids,
+    isFetching,
+  });
+};
+The state shape of the combinedReducer contains both ids and isFetching. We can use these fields in the corresponding selectors. State isFetching is returned by get isFetching selector inside `createList. Every list is independent.
+
+createList.js
+
+export const getIds = (state) => state.ids;
+export const getIsFetching = (state) => state.isFetching;
+The top level selector calls it with a slice of the state corresponding to the list for the given filter.
+
+index.js
+
+export const getIsFetching = (state, filter) =>
+  fromList.getIsFetching(state.listByFilter[filter]);
+The top level getIsFetching selector is called from the component in mapStateToProps.
+
+VisibleTodoList.js
+
+const mapStateToProps = (state, { params }) => {
+  const filter = params.filter || 'all';
+  return {
+    todos: getVisibleTodos(state, filter),
+    isFetching: getIsFetching(state, filter),
+    filter,
+  };
+};
+Finally, we use the isFetching prop inside the render function of our component to render a Loading... indicator if we are fetching, and there are no cached todos to show.
+
+VisibleTodoList.js
+
+if (isFetching && !todos.length) {
+  return <p>Loading...</p>;
+}
